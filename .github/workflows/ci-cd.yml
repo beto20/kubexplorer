@@ -49,55 +49,112 @@ jobs:
           body: ${{ steps.tag.outputs.changelog }}
           prerelease: ${{ contains(steps.tag.outputs.new_tag, '-alpha') }}
 
-  deploy:
-    needs: release-tag
-    if: needs.release-tag.outputs.new_tag != ''
-    timeout-minutes: 30
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux/amd64
-            artifact: Tider
-            suffix: linux-amd64
-          - os: windows-latest
-            platform: windows/amd64
-            artifact: Tider.exe
-            suffix: windows-amd64.exe
-          - os: macos-latest
-            platform: darwin/universal
-            artifact: Tider.app.zip
-            suffix: darwin-universal.zip
+
+  build-macos:
     runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest]
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v2
         with:
           submodules: recursive
 
-      - name: Build Wails app
-        uses: dAppServer/wails-build-action@d0b7d7500f3344ebed78d1a59e3f183977d62d1f
+      - name: GoLang
+        uses: actions/setup-go@v4
         with:
-          go-version: '1.24'
-          node-version: '26.4.0'
-          wails-version: 'v2.10.1'
-          build-name: Tider
-          build-platform: ${{ matrix.platform }}
-          package: false
+          check-latest: true
+          go-version: 1.25.0
 
-      - name: Stage release asset
+      - name: NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: 26.4.0
+
+      - name: Build & Compress
         shell: bash
-        env:
-          TAG: ${{ needs.release-tag.outputs.new_tag }}
         run: |
-          mkdir -p dist
-          cp "build/bin/${{ matrix.artifact }}" "dist/Tider-${TAG}-${{ matrix.suffix }}"
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          ls -la
+          cd ${{ env.APP_WORKING_DIRECTORY }}
+          wails build -ldflags "-X 'app/backend/common.Version=${{ github.ref_name }}'" -platform darwin/universal -o ${{ env.APP_NAME }} 
+          chmod +x build/bin/*/Contents/MacOS/*
+          mkdir -p _build/ _dist/
+          cp -r ./build/bin/${{ env.APP_NAME }}.app _build/
+          brew install create-dmg
+          create-dmg \
+            --no-internet-enable \
+            --volname "${{ env.APP_NAME }}" \
+            --volicon "_build/${{ env.APP_NAME }}.app/Contents/Resources/iconfile.icns" \
+            --window-pos 400 400 \
+            --window-size 660 450 \
+            --icon "${{ env.APP_NAME }}.app" 180 180 \
+            --icon-size 100 \
+            --hide-extension "${{ env.APP_NAME }}.app" \
+            --app-drop-link 480 180 \
+            "_dist/${{ env.APP_NAME }}-${{ github.ref_name }}-macos.dmg" \
+            "_build/"
 
-      - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+      - name: Upload
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ needs.release-tag.outputs.new_tag }}
-          files: dist/Tider-*
+          files: |
+            ${{ env.APP_WORKING_DIRECTORY }}/_dist/*
           fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+#  deploy:
+#    needs: release-tag
+#    if: needs.release-tag.outputs.new_tag != ''
+#    timeout-minutes: 30
+#    permissions:
+#      contents: write
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        include:
+#          - os: ubuntu-latest
+#            platform: linux/amd64
+#            artifact: Tider
+#            suffix: linux-amd64
+#          - os: windows-latest
+#            platform: windows/amd64
+#            artifact: Tider.exe
+#            suffix: windows-amd64.exe
+#          - os: macos-latest
+#            platform: darwin/universal
+#            artifact: Tider.app.zip
+#            suffix: darwin-universal.zip
+#    runs-on: ${{ matrix.os }}
+#    steps:
+#      - uses: actions/checkout@v4
+#        with:
+#          submodules: recursive
+#
+#      - name: Build Wails app
+#        uses: dAppServer/wails-build-action@d0b7d7500f3344ebed78d1a59e3f183977d62d1f
+#        with:
+#          go-version: '1.24'
+#          node-version: '26.4.0'
+#          wails-version: 'v2.10.1'
+#          build-name: Tider
+#          build-platform: ${{ matrix.platform }}
+#          package: false
+#
+#      - name: Stage release asset
+#        shell: bash
+#        env:
+#          TAG: ${{ needs.release-tag.outputs.new_tag }}
+#        run: |
+#          mkdir -p dist
+#          cp "build/bin/${{ matrix.artifact }}" "dist/Tider-${TAG}-${{ matrix.suffix }}"
+#
+#      - name: Upload release asset
+#        uses: softprops/action-gh-release@v2
+#        with:
+#          tag_name: ${{ needs.release-tag.outputs.new_tag }}
+#          files: dist/Tider-*
+#          fail_on_unmatched_files: true
