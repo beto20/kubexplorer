@@ -124,19 +124,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-  
+
           APP_PATH="build/bin/$APP_NAME.app"
           BINARY_PATH="$APP_PATH/Contents/MacOS/$APP_NAME"
-  
+          
           test -d "$APP_PATH"
           test -f "$BINARY_PATH"
-  
+
           chmod +x "$BINARY_PATH"
-  
+          echo "Application binary information:"
+          file "$BINARY_PATH"
+          
           echo "Application binary architectures:"
-          lipo -archs "$BINARY_PATH"
-  
-          lipo -verify_arch x86_64 arm64 "$BINARY_PATH"
+          ARCHITECTURES="$(lipo -archs "$BINARY_PATH")"
+          echo "$ARCHITECTURES"
+
+          lipo "$BINARY_PATH" -verify_arch x86_64 arm64
+          echo "Universal binary verification succeeded."
 
       - name: Apply ad-hoc signature
         shell: bash
