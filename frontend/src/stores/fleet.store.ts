@@ -19,7 +19,7 @@ export const useFleetStore = defineStore('fleet', () => {
 		loading.value = true
 		error.value = null
 		try {
-			const list = await fetchClusters()
+			const list = await fetchClusters(force)
 			clusters.value = list
 			totals.value = deriveFleetTotals(list)
 			loaded.value = true

@@ -4,9 +4,8 @@ import { hasWailsRuntime } from '@/services/runtime'
 import { model } from '../../../wailsjs/go/models'
 import type { OptRecommendation, SavingsSummary, Verdict } from './types'
 
-export const namespaces = ['payments', 'ml', 'analytics', 'default', 'kube-system']
+export const mockNamespaces = ['payments', 'ml', 'analytics', 'default', 'kube-system']
 
-// Rough monthly cost per reclaimed core / GiB (operator-configurable later).
 const COST_PER_CORE = 30
 const COST_PER_GIB = 6
 
@@ -35,7 +34,7 @@ const mockRecs: OptRecommendation[] = [
 	{ id: 'payments-gateway/gateway', namespace: 'payments', deployment: 'payments-gateway', container: 'gateway', current: { cpu: 500, memory: 768 }, usage: { cpu: 330, memory: 498 }, suggested: { cpu: 500, memory: 768 }, verdict: 'optimal' },
 ]
 
-function toRecommendation(dto: model.TuningRecommendation): OptRecommendation {
+export function toRecommendation(dto: model.TuningRecommendation): OptRecommendation {
 	const current = { cpu: dto.CurrentLimit.Cpu, memory: dto.CurrentLimit.Memory }
 	const usage = { cpu: dto.Usage.Cpu, memory: dto.Usage.Memory }
 	const suggested = { cpu: dto.SuggestedLimit.Cpu, memory: dto.SuggestedLimit.Memory }

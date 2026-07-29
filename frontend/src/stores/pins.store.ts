@@ -5,7 +5,6 @@ import type { Pin } from '@/types/pin'
 
 const STORAGE_KEY = 'kx-pins'
 
-// User-pinned resources, persisted to localStorage (real, not mock).
 export const usePinsStore = defineStore('pins', () => {
 	const stored = localStorage.getItem(STORAGE_KEY)
 	const pins = ref<Pin[]>(stored ? (JSON.parse(stored) as Pin[]) : defaultPins)

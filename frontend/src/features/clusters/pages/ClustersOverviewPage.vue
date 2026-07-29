@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import StatTile from '@/components/shared/StatTile.vue'
 import KxState from '@/components/shared/KxState.vue'
 import ClusterCardView from '../components/ClusterCard.vue'
 import { useFleetStore } from '@/stores/fleet.store'
+import { useIssuesStore } from '@/stores/issues.store'
+import { issuesBreakdown } from '@/data/issues.data'
 import type { ClusterSummary } from '@/types/fleet'
 
 const fleetStore = useFleetStore()
 const { totals, clusters, loading, error } = storeToRefs(fleetStore)
+const issuesStore = useIssuesStore()
+const { items: issues } = storeToRefs(issuesStore)
+
+const unreachable = computed(() => (totals.value ? totals.value.clusters - totals.value.reachable : 0))
 
 const toast = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | undefined
@@ -31,7 +37,10 @@ function onConnect() {
 	showToast('Connect cluster — pick a kubeconfig context')
 }
 
-onMounted(() => fleetStore.load())
+onMounted(() => {
+    fleetStore.load()
+    issuesStore.load()
+})
 </script>
 
 <template>
@@ -49,12 +58,18 @@ onMounted(() => fleetStore.load())
 	<KxState v-if="loading || error" :loading="loading" :error="error" @retry="() => fleetStore.load(true)" />
 
 	<template v-else>
-		<div v-if="totals" class="fleet">
-			<StatTile label="◧ Clusters" :value="String(totals.clusters)" :unit="`/ ${totals.reachable} reachable`" hint="all contexts responding" hint-tone="up" />
-			<StatTile label="▤ Workloads" :value="String(totals.workloads)" unit="pods" :hint="totals.workloadsDelta" hint-tone="up" />
-			<StatTile label="▦ Nodes" :value="String(totals.nodes)" :hint="`${totals.nodesNotReady} node NotReady`" hint-tone="down" />
-			<StatTile label="🩺 Open issues" :value="String(totals.openIssues)" value-tone="warn" :hint="totals.issuesBreakdown" hint-tone="down" />
-		</div>
+        <div v-if="totals" class="fleet">
+            <StatTile
+                label="◧ Clusters"
+                :value="String(totals.clusters)"
+                :unit="`/ ${totals.reachable} reachable`"
+                :hint="unreachable ? `${unreachable} unreachable` : 'all contexts responding'"
+                :hint-tone="unreachable ? 'down' : 'up'"
+            />
+            <StatTile label="▤ Workloads" :value="String(totals.workloads)" unit="pods" />
+            <StatTile label="▦ Nodes" :value="String(totals.nodes)" />
+            <StatTile label="🩺 Open issues" :value="String(issues.length)" :value-tone="issues.length ? 'warn' : undefined" :hint="issuesBreakdown(issues)" :hint-tone="issues.length ? 'down' : undefined" />
+        </div>
 
 		<div class="cards">
 			<ClusterCardView v-for="c in clusters" :key="c.name" :card="c" @open="onOpen" @troubleshoot="onTroubleshoot" />

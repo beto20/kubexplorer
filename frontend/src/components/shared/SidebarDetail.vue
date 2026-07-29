@@ -13,7 +13,7 @@ const emit = defineEmits<{
 	(e: 'close'): void
 }>()
 
-// v-navigation-drawer writes its model; never mutate the prop directly.
+// TODO: REVIEW - v-navigation-drawer writes its model; never mutate the prop directly.
 const visible = computed({
 	get: () => props.isVisible,
 	set: (open: boolean) => {

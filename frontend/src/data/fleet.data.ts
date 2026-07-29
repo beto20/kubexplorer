@@ -1,8 +1,8 @@
 import { delay } from './mock-latency'
-import { fetchClusters as getClustersRpc } from '@/services/layout.service'
 import { hasWailsRuntime } from '@/services/runtime'
 import type { ClusterSummary, FleetTotals } from '@/types/fleet'
-import type { model } from '../../wailsjs/go/models'
+import type {ClusterSnapshot} from "@/data/cluster-scan.data.ts";
+import {scanClusters} from "@/data/cluster-scan.data.ts";
 
 // TODO-19: Remove mock data
 const mockClusters: ClusterSummary[] = [
@@ -12,36 +12,33 @@ const mockClusters: ClusterSummary[] = [
 	{ name: 'minikube', source: 'local · v1.30.0', reachable: true, statusLabel: 'Idle', statusTone: 'idle', metricsAvailable: true, cpu: 8, memory: 14, nodes: 1, pods: 9, namespaces: 5 },
 ]
 
-function toClusterSummary(info: model.ClusterInfo): ClusterSummary {
+export function toClusterSummary(snap: ClusterSnapshot): ClusterSummary {
+	const { info } = snap
+	const reachable = info.Status && snap.ok
 	return {
 		name: info.Name,
 		source: info.Server ? `${info.Cluster} · ${info.Server}` : info.Cluster,
-		reachable: info.Status,
-		statusLabel: info.Status ? 'Reachable' : 'Unreachable',
-		statusTone: info.Status ? 'ok' : 'err',
-		// Per-cluster CPU/memory/counts need a metrics-server integration
-		// that the backend does not expose yet.
+		reachable,
+		statusLabel: reachable ? 'Reachable' : 'Unreachable',
+		statusTone: reachable ? 'ok' : 'err',
 		metricsAvailable: false,
 		cpu: 0,
 		memory: 0,
-		nodes: 0,
-		pods: 0,
-		namespaces: 0,
+		nodes: snap.nodes.length,
+		pods: snap.pods.length,
+		namespaces: snap.namespaces.length,
 	}
 }
 
-export async function fetchClusters(): Promise<ClusterSummary[]> {
+export async function fetchClusters(force = false): Promise<ClusterSummary[]> {
 	if (!hasWailsRuntime()) {
 		await delay()
 		return mockClusters
 	}
-	const infos = await getClustersRpc()
-	return (infos ?? []).map(toClusterSummary)
+	const snapshots = await scanClusters(force)
+	return snapshots.map(toClusterSummary)
 }
 
-// Totals are derived from the cluster list so the KPIs always equal the
-// sum of the cards. Workload/node counts are 0 for real clusters until
-// the metrics integration lands.
 export function deriveFleetTotals(clusters: ClusterSummary[]): FleetTotals {
 	const workloads = clusters.reduce((sum, c) => sum + c.pods, 0)
 	const nodes = clusters.reduce((sum, c) => sum + c.nodes, 0)
@@ -50,10 +47,9 @@ export function deriveFleetTotals(clusters: ClusterSummary[]): FleetTotals {
 		clusters: clusters.length,
 		reachable: clusters.filter((c) => c.reachable).length,
 		workloads,
-		workloadsDelta: workloads ? '▲ 6 vs. yesterday' : '',
 		nodes,
-		nodesNotReady: nodes ? 1 : 0,
 		openIssues,
 		issuesBreakdown: openIssues ? `${openIssues} flagged` : 'none',
 	}
 }
+
