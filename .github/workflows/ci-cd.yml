@@ -52,6 +52,8 @@ jobs:
 
   build-macos:
     runs-on: ${{ matrix.os }}
+    environment:
+      name: prd
     strategy:
       matrix:
         os: [macos-latest]
