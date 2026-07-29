@@ -9,6 +9,9 @@ import {
 } from '../../wailsjs/go/binding/General'
 import { model } from '../../wailsjs/go/models'
 import NamespaceDto = model.NamespaceDto
+import {GetClusters} from "../../wailsjs/go/binding/Environment";
+
+export const fetchClusters = async () => GetClusters()
 
 export const fetchGetNodes = async (clusterCtx: string) => GetNodes(clusterCtx)
 export const fetchGetNode = async (name: string, clusterCtx: string) => GetNode(name, clusterCtx)
