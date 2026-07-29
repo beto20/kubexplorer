@@ -1,45 +1,54 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch} from 'vue'
 import PodTable from '../components/PodTable.vue'
+import DeploymentTable from '../components/DeploymentTable.vue'
 import PodDetailDrawer from '../components/PodDetailDrawer.vue'
 import KxState from '@/components/shared/KxState.vue'
 import { useAsyncData } from '@/composables/useAsyncData'
 import { useActiveCluster } from '@/composables/useActiveCluster'
-import { fetchPodDetail, fetchPods, namespaces, resourceTabs } from '../explorer.data'
-import type { PodDetail, PodRow } from '../types'
+import { useNamespacesStore } from '@/stores/namespaces.store'
+import { hasWailsRuntime } from '@/services/runtime'
+import { fetchDeployments, fetchPodDetail, fetchPods, mockNamespaces, resourceTabs } from '../explorer.data'
+import type { DeploymentRow, PodDetail, PodRow, ResourceTab } from '../types'
 
 const { resolve } = useActiveCluster()
 const cluster = ref('')
 const { data: pods, loading, error, reload } = useAsyncData(() => fetchPods(cluster.value), [] as PodRow[])
+const { data: deployments, loading: depsLoading, error: depsError, reload: reloadDeps } = useAsyncData(() => fetchDeployments(cluster.value), [] as DeploymentRow[])
+const namespacesStore = useNamespacesStore()
 
 const search = ref('')
 const namespaceFilter = ref('')
 const statusFilter = ref('')
-const activeTab = ref('pod')
+const activeTab = ref<ResourceTab['key']>('pod')
+const depsLoaded = ref(false)
+const namespaceOptions = ref<string[]>([])
 
 const selectedName = ref('')
 const selectedPod = ref<PodDetail | null>(null)
 const drawerOpen = ref(false)
-
 const toast = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
-const statusOptions = computed(() => [...new Set(pods.value.map((p) => p.status))])
 const isPods = computed(() => activeTab.value === 'pod')
+const statusOptions = computed(() => [...new Set((isPods.value ? pods.value.map((p) => p.status) : deployments.value.map((d) => d.status)))])
+const tabCount = computed(() => (t: ResourceTab) => (t.key === 'pod' ? String(pods.value.length) : depsLoaded.value ? String(deployments.value.length) : '…'))
+const showState = computed(() => (isPods.value ? loading.value || error.value : depsLoading.value || depsError.value))
 
-const filteredPods = computed(() =>
-	pods.value.filter((p) => {
-		const byName = !search.value || p.name.toLowerCase().includes(search.value.toLowerCase())
-		const byNs = !namespaceFilter.value || p.namespace === namespaceFilter.value
-		const byStatus = !statusFilter.value || p.status === statusFilter.value
-		return byName && byNs && byStatus
-	}),
-)
+function matches(row: { name: string; namespace: string; status: string }) {
+    const byName = !search.value || row.name.toLowerCase().includes(search.value.toLowerCase())
+    const byNs = !namespaceFilter.value || row.namespace === namespaceFilter.value
+    const byStatus = !statusFilter.value || row.status === statusFilter.value
+    return byName && byNs && byStatus
+}
+
+const filteredPods = computed(() => pods.value.filter(matches))
+const filteredDeployments = computed(() => deployments.value.filter(matches))
 
 function showToast(message: string) {
-	toast.value = message
-	clearTimeout(toastTimer)
-	toastTimer = setTimeout(() => (toast.value = ''), 2600)
+    toast.value = message
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => (toast.value = ''), 2600)
 }
 
 async function openDetail(row: PodRow) {
@@ -52,8 +61,8 @@ async function openDetail(row: PodRow) {
 	drawerOpen.value = true
 }
 
-function onTroubleshoot(row: PodRow) {
-	showToast(`Diagnosing ${row.name}…`)
+function onTroubleshoot(row: { name: string }) {
+    showToast(`Diagnosing ${row.name}…`)
 }
 
 function onEdit(row: PodRow) {
@@ -68,18 +77,27 @@ function onAction(label: string, pod: PodDetail) {
 	showToast(`${label} · ${pod.name}`)
 }
 
+watch(activeTab, (tab) => {
+    statusFilter.value = ''
+    if (tab === 'deployment' && !depsLoaded.value) {
+        depsLoaded.value = true
+        reloadDeps()
+    }
+})
+
 onMounted(async () => {
-	cluster.value = await resolve()
-	reload()
+    cluster.value = await resolve()
+    reload()
+    namespaceOptions.value = hasWailsRuntime() ? await namespacesStore.load(cluster.value) : mockNamespaces
 })
 </script>
 
 <template>
 	<div class="page-head">
-		<div>
-			<h1>Pods</h1>
-			<p>{{ pods.length }} pods · 28 namespaces · <span class="live">live</span></p>
-		</div>
+        <div>
+            <h1>{{ isPods ? 'Pods' : 'Deployments' }}</h1>
+            <p>{{ isPods ? `${pods.length} pods` : `${deployments.length} deployments` }} · {{ namespaceOptions.length }} namespaces</p>
+        </div>
 		<div class="head-actions">
 			<button class="btn">⭢ Export manifest</button>
 			<button class="btn primary">＋ Apply YAML</button>
@@ -88,7 +106,7 @@ onMounted(async () => {
 
 	<div class="tabs">
 		<button v-for="t in resourceTabs" :key="t.key" class="tab" :class="{ on: t.key === activeTab }" @click="activeTab = t.key">
-			{{ t.label }} · {{ t.count }}
+			{{ t.label }} · {{ tabCount(t) }}
 		</button>
 	</div>
 
@@ -97,7 +115,7 @@ onMounted(async () => {
 			<input v-model="search" class="tb-search" placeholder="⌕ Filter by name…" />
 			<select v-model="namespaceFilter" class="select">
 				<option value="">Namespace: all</option>
-				<option v-for="ns in namespaces" :key="ns" :value="ns">{{ ns }}</option>
+				<option v-for="ns in namespaceOptions" :key="ns" :value="ns">{{ ns }}</option>
 			</select>
 			<select v-model="statusFilter" class="select">
 				<option value="">Status: all</option>
@@ -105,11 +123,11 @@ onMounted(async () => {
 			</select>
 		</div>
 
-		<KxState v-if="loading || error" :loading="loading" :error="error" @retry="reload" />
-		<template v-else>
-			<PodTable v-if="isPods" :rows="filteredPods" :selected="selectedName" @select="openDetail" @troubleshoot="onTroubleshoot" @edit="onEdit" />
-			<div v-else class="tab-empty">No <b>{{ activeTab }}</b> data in this demo — wire the corresponding service to populate it.</div>
-		</template>
+        <KxState v-if="showState" :loading="isPods ? loading : depsLoading" :error="isPods ? error : depsError" @retry="isPods ? reload() : reloadDeps()" />
+        <template v-else>
+            <PodTable v-if="isPods" :rows="filteredPods" :selected="selectedName" @select="openDetail" @troubleshoot="onTroubleshoot" @edit="onEdit" />
+            <DeploymentTable v-else :rows="filteredDeployments" @troubleshoot="onTroubleshoot" />
+        </template>
 	</div>
 
 	<PodDetailDrawer :pod="selectedPod" :open="drawerOpen" @close="drawerOpen = false" @diagnose="onDiagnose" @action="onAction" />
@@ -136,9 +154,6 @@ onMounted(async () => {
 	margin: 4px 0 0;
 	color: var(--text-dim);
 	font-size: 13px;
-}
-.live {
-	color: var(--ok);
 }
 .head-actions {
 	margin-left: auto;
@@ -225,12 +240,6 @@ onMounted(async () => {
 	color: var(--text-dim);
 	font-family: var(--sans);
 	cursor: pointer;
-}
-.tab-empty {
-	padding: 48px 20px;
-	text-align: center;
-	color: var(--text-faint);
-	font-size: 13px;
 }
 
 .toast {

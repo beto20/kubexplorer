@@ -34,7 +34,7 @@ const filterNamespace = ref('')
 const filterStatus = ref('')
 const sortBy = ref<{ key: string; order: 'asc' | 'desc' }[]>([{ key: 'name', order: 'asc' }])
 
-// Status filter options come from the data instead of a hardcoded list
+// TODO: REVIEW - Status filter options come from the data instead of a hardcoded list
 const statuses = computed(() => [...new Set(rows.value.map((i) => i.status).filter((s): s is string => !!s))])
 
 const filteredItems = computed(() =>

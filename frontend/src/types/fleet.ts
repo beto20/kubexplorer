@@ -17,14 +17,11 @@ export interface ClusterSummary {
 	issues?: number
 }
 
-// Fleet-wide totals across every connected cluster.
 export interface FleetTotals {
 	clusters: number
 	reachable: number
 	workloads: number
-	workloadsDelta: string
 	nodes: number
-	nodesNotReady: number
 	openIssues: number
 	issuesBreakdown: string
 }

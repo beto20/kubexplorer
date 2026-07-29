@@ -38,8 +38,15 @@ export interface PodDetail {
 	lastTermination?: LastTermination
 }
 
+export interface DeploymentRow {
+	name: string
+	namespace: string
+	replicas: number
+	status: string
+	age: string
+}
+
 export interface ResourceTab {
-	key: string
+	key: 'pod' | 'deployment'
 	label: string
-	count: number
 }

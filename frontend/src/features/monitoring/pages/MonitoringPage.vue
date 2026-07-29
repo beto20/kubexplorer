@@ -28,13 +28,13 @@ onMounted(async () => {
 	<div class="page-head">
 		<div>
 			<h1>Cluster monitoring</h1>
-			<p>Live · refreshed 4s ago</p>
+            <p>Node and workload snapshot</p>
 		</div>
 		<div class="head-actions">
 			<select v-model="range" class="select" @change="reload">
 				<option v-for="r in ranges" :key="r" :value="r">Range: {{ r }}</option>
 			</select>
-			<span class="chip ok">● live</span>
+            <button class="chip ok" @click="reload">↻ Refresh</button>
 		</div>
 	</div>
 
@@ -98,6 +98,8 @@ onMounted(async () => {
 	font-weight: 600;
 	padding: 3px 10px;
 	border-radius: 999px;
+    border: none;
+    cursor: pointer;
 }
 .chip.ok {
 	color: var(--ok);

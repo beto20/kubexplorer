@@ -1,6 +1,12 @@
 import { delay } from '@/data/mock-latency'
+import { issuesBreakdown } from '@/data/issues.data'
+import { fetchGetNamespaces } from '@/services/general.service'
+import { fetchResourceTuning } from '@/services/workload.service'
+import { hasWailsRuntime } from '@/services/runtime'
+import { computeSummary, toRecommendation } from '@/features/optimization/optimization.data'
 import type { ActivityItem, Greeting, Kpi, OptimizationSummary } from './types'
 import type { FleetTotals } from '@/types/fleet'
+import type { Issue } from '@/types/issue'
 
 // TODO-4: TBD if this will continue
 export const greeting: Greeting = {
@@ -11,12 +17,25 @@ export const greeting: Greeting = {
 }
 
 // TODO-5: TBD if this will continue. Presents fleet totals as the Home KPI tiles.
-export function homeKpis(totals: FleetTotals): Kpi[] {
+export function homeKpis(totals: FleetTotals, issues: Issue[]): Kpi[] {
+	const unreachable = totals.clusters - totals.reachable
 	return [
-		{ label: '◧ Clusters', value: String(totals.clusters), unit: `/ ${totals.reachable} up`, hint: 'all reachable', hintTone: 'up' },
-		{ label: '▤ Workloads', value: String(totals.workloads), unit: 'pods', hint: '▲ 6 today', hintTone: 'up' },
-		{ label: '▦ Nodes', value: String(totals.nodes), hint: `${totals.nodesNotReady} NotReady`, hintTone: 'down' },
-		{ label: '🩺 Open issues', value: String(totals.openIssues), valueTone: 'warn', hint: '2 critical · 1 warning', hintTone: 'down' },
+		{
+			label: '◧ Clusters',
+			value: String(totals.clusters),
+			unit: `/ ${totals.reachable} up`,
+			hint: unreachable ? `${unreachable} unreachable` : 'all reachable',
+			hintTone: unreachable ? 'down' : 'up',
+		},
+		{ label: '▤ Workloads', value: String(totals.workloads), unit: 'pods' },
+		{ label: '▦ Nodes', value: String(totals.nodes) },
+		{
+			label: '🩺 Open issues',
+			value: String(issues.length),
+			valueTone: issues.length ? 'warn' : 'default',
+			hint: issuesBreakdown(issues),
+			hintTone: issues.length ? 'down' : undefined,
+		},
 	]
 }
 
@@ -31,8 +50,37 @@ export async function fetchActivity(): Promise<ActivityItem[]> {
 	]
 }
 
+const tuningCache = new Map<string, Promise<OptimizationSummary>>()
+
+async function aggregateTuning(cluster: string): Promise<OptimizationSummary> {
+	const namespaces = ((await fetchGetNamespaces(cluster)) ?? []).map((n) => n.Name)
+	const results = await Promise.allSettled(namespaces.map((ns) => fetchResourceTuning(ns, cluster)))
+	const fulfilled = results.filter((r) => r.status === 'fulfilled')
+
+	if (namespaces.length && !fulfilled.length) {
+		return { cpuCores: '—', memory: '—', monthly: 'Requires metrics-server on the cluster.', count: 0 }
+	}
+	const recs = fulfilled.flatMap((r) => (r.value ?? []).map(toRecommendation))
+	const summary = computeSummary(recs)
+	return {
+		cpuCores: String(summary.reclaimableCpu),
+		memory: String(summary.reclaimableMemory),
+		monthly: `≈ €${summary.monthly} / month in ${cluster}.`,
+		count: summary.flagged,
+	}
+}
+
 // TODO-7: Consume backend.
-export async function fetchOptimization(): Promise<OptimizationSummary> {
-	await delay()
-	return { cpuCores: '6.4', memory: '12.8', monthly: '≈ €310 / month across prod node groups.', count: 17 }
+export async function fetchOptimization(cluster: string): Promise<OptimizationSummary> {
+	if (!hasWailsRuntime()) {
+		await delay()
+		return { cpuCores: '6.4', memory: '12.8', monthly: '≈ €310 / month across prod node groups.', count: 17 }
+	}
+	let cached = tuningCache.get(cluster)
+	if (!cached) {
+		cached = aggregateTuning(cluster)
+		cached.catch(() => tuningCache.delete(cluster))
+		tuningCache.set(cluster, cached)
+	}
+	return cached
 }

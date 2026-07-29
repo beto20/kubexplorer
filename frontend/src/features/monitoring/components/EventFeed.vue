@@ -7,7 +7,7 @@ defineProps<{ events: EventItem[] }>()
 <template>
 	<div class="card">
 		<div class="head">Recent events</div>
-		<div class="list">
+            <div v-if="events.length" class="list">
 			<div v-for="e in events" :key="e.id" class="ev">
 				<span class="dot" :class="e.kind"></span>
 				<div class="meta">
@@ -16,6 +16,7 @@ defineProps<{ events: EventItem[] }>()
 				</div>
 			</div>
 		</div>
+        <div v-else class="list-empty">Events feed not connected — needs an events watch the backend does not expose yet.</div>
 	</div>
 </template>
 
@@ -65,5 +66,10 @@ defineProps<{ events: EventItem[] }>()
 .sub {
 	color: var(--text-faint);
 	margin-top: 2px;
+}
+.list-empty {
+    color: var(--text-faint);
+    font-size: 12.5px;
+    font-style: italic;
 }
 </style>

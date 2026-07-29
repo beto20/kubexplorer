@@ -16,7 +16,6 @@ export const useSettingsStore = defineStore('settings', () => {
 		}
 		try {
 			const parsed = JSON.parse(raw) as Partial<AppPreferences>
-			// Merge over defaults so newly-added keys are never undefined.
 			return {
 				...structuredClone(defaultPreferences),
 				...parsed,

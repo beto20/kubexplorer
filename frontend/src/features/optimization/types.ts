@@ -23,5 +23,5 @@ export interface SavingsSummary {
 	idle: number
 	reclaimableCpu: number // cores
 	reclaimableMemory: number // GiB
-	monthly: number // € estimate
+	monthly: number // estimate
 }
