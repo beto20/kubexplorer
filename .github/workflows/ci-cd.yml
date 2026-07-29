@@ -68,57 +68,99 @@ jobs:
       needs.release-tag.outputs.new_tag != '' &&
       needs.release-tag.outputs.new_tag != 'undefined'
 
-    runs-on: macos-latest
+    runs-on: macos-15
     timeout-minutes: 10
-
-    permissions:
-      contents: write
 
     env:
       VERSION: ${{ needs.release-tag.outputs.new_tag }}
 
     steps:
       - name: Checkout release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.release-tag.outputs.new_tag }}
           fetch-depth: 0
           submodules: recursive
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
-          check-latest: true
-          go-version: "1.25.0"
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "26.4.0"
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Verify release version
         shell: bash
         run: |
+          set -euo pipefail
+  
           echo "Application: $APP_NAME"
           echo "Version: $VERSION"
           echo "Checked-out ref: $(git describe --tags --exact-match)"
 
-      - name: Build and compress
+      - name: Install Wails
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
+
+      - name: Build macOS universal application
         shell: bash
         run: |
           set -euo pipefail
 
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-          wails build \
-            -ldflags "-X app/backend/common.Version=$VERSION" \
+          wails build -clean -ldflags "-X app/backend/common.Version=$VERSION" \
             -platform darwin/universal \
             -o "$APP_NAME"
 
-          chmod +x "build/bin/$APP_NAME.app/Contents/MacOS/"*
+      - name: Verify universal binary
+        shell: bash
+        run: |
+          set -euo pipefail
 
+          APP_PATH="build/bin/$APP_NAME.app"
+          BINARY_PATH="$APP_PATH/Contents/MacOS/$APP_NAME"
+          
+          test -d "$APP_PATH"
+          test -f "$BINARY_PATH"
+
+          chmod +x "$BINARY_PATH"
+          echo "Application binary information:"
+          file "$BINARY_PATH"
+          
+          echo "Application binary architectures:"
+          ARCHITECTURES="$(lipo -archs "$BINARY_PATH")"
+          echo "$ARCHITECTURES"
+
+          lipo "$BINARY_PATH" -verify_arch x86_64 arm64
+          echo "Universal binary verification succeeded."
+
+      - name: Apply ad-hoc signature
+        shell: bash
+        run: |
+          set -euo pipefail
+  
+          APP_PATH="build/bin/$APP_NAME.app"
+          codesign --force --deep --sign - "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign --display --verbose=2 "$APP_PATH"
+
+      - name: Create DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+  
+          APP_PATH="build/bin/$APP_NAME.app"
+          DMG_PATH="_dist/$APP_NAME-$VERSION-macos-universal.dmg"
           mkdir -p _build _dist
-          cp -R "build/bin/$APP_NAME.app" "_build/"
+          cp -R "$APP_PATH" "_build/"
 
           brew install create-dmg
 
@@ -132,17 +174,24 @@ jobs:
             --icon-size 100 \
             --hide-extension "$APP_NAME.app" \
             --app-drop-link 480 180 \
-            "_dist/$APP_NAME-$VERSION-macos.dmg" \
+            "$DMG_PATH" \
             "_build/"
 
-      - name: Upload DMG to release
-        uses: softprops/action-gh-release@v2
+          test -f "$DMG_PATH"
+  
+          echo "Created DMG:"
+          ls -lh "$DMG_PATH"
+  
+          shasum -a 256 "$DMG_PATH"
+
+      - name: Upload macOS workflow artifact
+        uses: actions/upload-artifact@v7
         with:
-          tag_name: ${{ needs.release-tag.outputs.new_tag }}
-          files: _dist/*.dmg
-          fail_on_unmatched_files: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: release-macos
+          path: _dist/*.dmg
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
 
   build-linux:
     name: Build Linux
