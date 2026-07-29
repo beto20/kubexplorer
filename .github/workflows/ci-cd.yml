@@ -5,30 +5,39 @@ name: CI-CD
 
 on:
   push:
-    branches: [ "master" ]
+    branches:
+      - master
+
 env:
-  APP_NAME: 'Tider'
+  APP_NAME: Tider
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   quality:
     uses: ./.github/workflows/quality.yml
 
   release-tag:
+    name: Create release tag
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     permissions:
       contents: write
+
     outputs:
       new_tag: ${{ steps.tag.outputs.new_tag }}
+      changelog: ${{ steps.tag.outputs.changelog }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -42,119 +51,102 @@ jobs:
           pre_release_branches: master
           append_to_pre_release_tag: alpha
 
-      - name: Create release
-        if: steps.tag.outputs.new_tag
+      - name: Show generated version
+        if: steps.tag.outputs.new_tag != ''
+        run: |
+          echo "Generated tag: ${{ steps.tag.outputs.new_tag }}"
+
+      - name: Create GitHub release
+        if: steps.tag.outputs.new_tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.new_tag }}
           name: ${{ steps.tag.outputs.new_tag }}
           body: ${{ steps.tag.outputs.changelog }}
           prerelease: ${{ contains(steps.tag.outputs.new_tag, '-alpha') }}
-
-
-  build-macos:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          submodules: recursive
-
-      - name: GoLang
-        uses: actions/setup-go@v4
-        with:
-          check-latest: true
-          go-version: 1.25.0
-
-      - name: NodeJS
-        uses: actions/setup-node@v3
-        with:
-          node-version: 26.4.0
-
-      - name: Build & Compress
-        shell: bash
-        run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
-          wails build -ldflags "-X 'app/backend/common.Version=${{ github.ref_name }}'" -platform darwin/universal -o ${{ env.APP_NAME }} 
-          chmod +x build/bin/*/Contents/MacOS/*
-          mkdir -p _build/ _dist/
-          cp -r ./build/bin/${{ env.APP_NAME }}.app _build/
-          brew install create-dmg
-          create-dmg \
-            --no-internet-enable \
-            --volname "${{ env.APP_NAME }}" \
-            --volicon "_build/${{ env.APP_NAME }}.app/Contents/Resources/iconfile.icns" \
-            --window-pos 400 400 \
-            --window-size 660 450 \
-            --icon "${{ env.APP_NAME }}.app" 180 180 \
-            --icon-size 100 \
-            --hide-extension "${{ env.APP_NAME }}.app" \
-            --app-drop-link 480 180 \
-            "_dist/${{ env.APP_NAME }}-${{ github.ref_name }}-macos.dmg" \
-            "_build/"
-
-      - name: Upload
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            /_dist/*
-          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-#  deploy:
-#    needs: release-tag
-#    if: needs.release-tag.outputs.new_tag != ''
-#    timeout-minutes: 30
-#    permissions:
-#      contents: write
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        include:
-#          - os: ubuntu-latest
-#            platform: linux/amd64
-#            artifact: Tider
-#            suffix: linux-amd64
-#          - os: windows-latest
-#            platform: windows/amd64
-#            artifact: Tider.exe
-#            suffix: windows-amd64.exe
-#          - os: macos-latest
-#            platform: darwin/universal
-#            artifact: Tider.app.zip
-#            suffix: darwin-universal.zip
-#    runs-on: ${{ matrix.os }}
-#    steps:
-#      - uses: actions/checkout@v4
-#        with:
-#          submodules: recursive
-#
-#      - name: Build Wails app
-#        uses: dAppServer/wails-build-action@d0b7d7500f3344ebed78d1a59e3f183977d62d1f
-#        with:
-#          go-version: '1.24'
-#          node-version: '26.4.0'
-#          wails-version: 'v2.10.1'
-#          build-name: Tider
-#          build-platform: ${{ matrix.platform }}
-#          package: false
-#
-#      - name: Stage release asset
-#        shell: bash
-#        env:
-#          TAG: ${{ needs.release-tag.outputs.new_tag }}
-#        run: |
-#          mkdir -p dist
-#          cp "build/bin/${{ matrix.artifact }}" "dist/Tider-${TAG}-${{ matrix.suffix }}"
-#
-#      - name: Upload release asset
-#        uses: softprops/action-gh-release@v2
-#        with:
-#          tag_name: ${{ needs.release-tag.outputs.new_tag }}
-#          files: dist/Tider-*
-#          fail_on_unmatched_files: true
+  build-macos:
+    name: Build macOS
+    needs: release-tag
+
+    if: >-
+      needs.release-tag.outputs.new_tag != '' &&
+      needs.release-tag.outputs.new_tag != 'undefined'
+
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: write
+
+    env:
+      VERSION: ${{ needs.release-tag.outputs.new_tag }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-tag.outputs.new_tag }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          check-latest: true
+          go-version: "1.25.0"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "26.4.0"
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          echo "Application: $APP_NAME"
+          echo "Version: $VERSION"
+          echo "Checked-out ref: $(git describe --tags --exact-match)"
+
+      - name: Build and compress
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+          wails build \
+            -ldflags "-X app/backend/common.Version=$VERSION" \
+            -platform darwin/universal \
+            -o "$APP_NAME"
+
+          chmod +x "build/bin/$APP_NAME.app/Contents/MacOS/"*
+
+          mkdir -p _build _dist
+          cp -R "build/bin/$APP_NAME.app" "_build/"
+
+          brew install create-dmg
+
+          create-dmg \
+            --no-internet-enable \
+            --volname "$APP_NAME" \
+            --volicon "_build/$APP_NAME.app/Contents/Resources/iconfile.icns" \
+            --window-pos 400 400 \
+            --window-size 660 450 \
+            --icon "$APP_NAME.app" 180 180 \
+            --icon-size 100 \
+            --hide-extension "$APP_NAME.app" \
+            --app-drop-link 480 180 \
+            "_dist/$APP_NAME-$VERSION-macos.dmg" \
+            "_build/"
+
+      - name: Upload DMG to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-tag.outputs.new_tag }}
+          files: _dist/*.dmg
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
