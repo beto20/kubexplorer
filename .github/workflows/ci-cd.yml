@@ -8,64 +8,21 @@ on:
     branches: [ "master" ]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  test-backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-
-      - name: Stub frontend dist for go:embed
-        run: mkdir -p frontend/dist && touch frontend/dist/index.html
-
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Verify dependencies
-        run: go mod verify
-
-      - name: Build
-        run: go build ./...
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Execute unit tests
-        run: go test -race ./...
-
-  test-frontend:
-    needs: [test-backend]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '26.4.0'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install NPM dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Execute unit tests
-        working-directory: frontend
-        run: npm run test:unit
+  quality:
+    uses: ./.github/workflows/quality.yml
 
   release-tag:
-    needs: [test-backend, test-frontend]
+    needs: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
     outputs:
       new_tag: ${{ steps.tag.outputs.new_tag }}
     steps:
@@ -95,34 +52,52 @@ jobs:
   deploy:
     needs: release-tag
     if: needs.release-tag.outputs.new_tag != ''
+    timeout-minutes: 30
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
-        build: [
-          {name: Tider, platform: linux/amd64, os: ubuntu-latest},
-          {name: Tider, platform: windows/amd64, os: windows-latest},
-          {name: Tider, platform: darwin/universal, os: macos-latest}
-        ]
-    runs-on: ${{ matrix.build.os }}
+        include:
+          - os: ubuntu-latest
+            platform: linux/amd64
+            artifact: Tider
+            suffix: linux-amd64
+          - os: windows-latest
+            platform: windows/amd64
+            artifact: Tider.exe
+            suffix: windows-amd64.exe
+          - os: macos-latest
+            platform: darwin/universal
+            artifact: Tider.app.zip
+            suffix: darwin-universal.zip
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: dAppServer/wails-build-action@main
+
+      - name: Build Wails app
+        uses: dAppServer/wails-build-action@d0b7d7500f3344ebed78d1a59e3f183977d62d1f
         with:
           go-version: '1.24'
           node-version: '26.4.0'
           wails-version: 'v2.10.1'
-          build-name: ${{ matrix.build.name }}
-          build-platform: ${{ matrix.build.platform }}
-          build-obfuscate: false
+          build-name: Tider
+          build-platform: ${{ matrix.platform }}
+          package: false
 
-      - name: Upload release assets
+      - name: Stage release asset
+        shell: bash
+        env:
+          TAG: ${{ needs.release-tag.outputs.new_tag }}
+        run: |
+          mkdir -p dist
+          cp "build/bin/${{ matrix.artifact }}" "dist/Tider-${TAG}-${{ matrix.suffix }}"
+
+      - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release-tag.outputs.new_tag }}
-          files: |
-            build/bin/${{ matrix.build.name }}
-            build/bin/${{ matrix.build.name }}.exe
-            build/bin/${{ matrix.build.name }}-amd64-installer.exe
-            build/bin/${{ matrix.build.name }}.app.zip
+          files: dist/Tider-*
+          fail_on_unmatched_files: true
