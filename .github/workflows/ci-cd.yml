@@ -6,6 +6,9 @@ name: CI-CD
 on:
   push:
     branches: [ "master" ]
+env:
+  APP_NAME: 'Tider'
+  APP_WORKING_DIRECTORY: 'app'
 
 permissions:
   contents: read
@@ -77,7 +80,6 @@ jobs:
         shell: bash
         run: |
           go install github.com/wailsapp/wails/v2/cmd/wails@latest
-          ls -la
           cd ${{ env.APP_WORKING_DIRECTORY }}
           wails build -ldflags "-X 'app/backend/common.Version=${{ github.ref_name }}'" -platform darwin/universal -o ${{ env.APP_NAME }} 
           chmod +x build/bin/*/Contents/MacOS/*
