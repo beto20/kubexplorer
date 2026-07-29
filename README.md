@@ -65,4 +65,3 @@ Tider's Kubernetes access is read-only and nothing leaves your workstation by de
 ## License
 
 Licensed under the [Apache License 2.0](./LICENSE).
-
