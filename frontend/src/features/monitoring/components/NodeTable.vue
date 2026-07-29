@@ -16,8 +16,8 @@ defineProps<{ nodes: NodeRow[] }>()
 			<tbody>
 				<tr v-for="n in nodes" :key="n.name">
 					<td><span class="name">{{ n.name }}</span></td>
-					<td><UsageBar class="b" :pct="n.cpu" /></td>
-					<td><UsageBar class="b" :pct="n.memory" /></td>
+                    <td><UsageBar v-if="n.cpu !== null" class="b" :pct="n.cpu" /><span v-else class="na">—</span></td>
+                    <td><UsageBar v-if="n.memory !== null" class="b" :pct="n.memory" /><span v-else class="na">—</span></td>
 					<td class="mono">{{ n.pods }}</td>
 					<td><StatusChip :status="n.status" :tone="n.statusTone" /></td>
 				</tr>
@@ -69,5 +69,8 @@ defineProps<{ nodes: NodeRow[] }>()
 }
 .b {
 	width: 90px;
+}
+.na {
+    color: var(--text-faint);
 }
 </style>

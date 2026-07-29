@@ -1,26 +1,19 @@
 import { delay } from '@/data/mock-latency'
-import { fetchGetPod, fetchGetPods } from '@/services/workload.service'
+import {fetchGetDeployments, fetchGetPod, fetchGetPods} from '@/services/workload.service'
 import { hasWailsRuntime } from '@/services/runtime'
 import type { PodDetail, PodRow, ResourceTab } from './types'
 import type { model } from '../../../wailsjs/go/models'
+import type {DeploymentRow} from "@/types/workload.type.ts";
 
 export const resourceTabs: ResourceTab[] = [
-	{ key: 'pod', label: 'Pods', count: 184 },
-	{ key: 'deployment', label: 'Deployments', count: 42 },
-	{ key: 'statefulset', label: 'StatefulSets', count: 6 },
-	{ key: 'job', label: 'Jobs', count: 11 },
+	{ key: 'pod', label: 'Pods'},
+	{ key: 'deployment', label: 'Deployments'},
 ]
 
-export const namespaces = ['payments', 'ml', 'analytics', 'kube-system', 'default']
+export const mockNamespaces = ['payments', 'ml', 'analytics', 'kube-system', 'default']
 
 const mockPods: PodRow[] = [
 	{ name: 'checkout-api-7d9f8c-2xk4p', namespace: 'payments', cpu: '240m', memory: '312Mi', restarts: 0, node: 'ip-10-2-31-7', age: '3h12m', status: 'Running' },
-	{ name: 'checkout-api-7d9f8c-9wzlm', namespace: 'payments', cpu: '980m', memory: '1.4Gi', restarts: 7, node: 'ip-10-2-44-2', age: '3h12m', status: 'CrashLoopBackOff' },
-	{ name: 'ledger-worker-58c6b4-qm8tx', namespace: 'payments', cpu: '120m', memory: '680Mi', restarts: 0, node: 'ip-10-2-31-7', age: '1d4h', status: 'Running' },
-	{ name: 'fraud-scoring-6b7d9-h4n2k', namespace: 'payments', cpu: '1.2', memory: '2.1Gi', restarts: 2, node: 'ip-10-2-44-2', age: '6h40m', status: 'Pending' },
-	{ name: 'payments-gateway-5f9c-tt7bd', namespace: 'payments', cpu: '340m', memory: '512Mi', restarts: 0, node: 'ip-10-2-19-9', age: '2d1h', status: 'Running' },
-	{ name: 'refund-consumer-9d4f1-pl3qx', namespace: 'payments', cpu: '90m', memory: '256Mi', restarts: 0, node: 'ip-10-2-19-9', age: '2d1h', status: 'Running' },
-	{ name: 'settlement-cron-28-w7c9', namespace: 'payments', cpu: '—', memory: '—', restarts: 0, node: 'ip-10-2-31-7', age: '14m', status: 'Completed' },
 	{ name: 'notify-dispatch-7a1b-xc09r', namespace: 'payments', cpu: '60m', memory: '180Mi', restarts: 1, node: 'ip-10-2-44-2', age: '5h2m', status: 'Running' },
 ]
 
@@ -59,7 +52,7 @@ function toPodRow(dto: model.PodDto): PodRow {
 		namespace: dto.Namespace,
 		cpu: `${c?.Limit.Cpu ?? 0}m`,
 		memory: `${c?.Limit.Memory ?? 0}Mi`,
-		restarts: 0, // PodDto has no restart count yet (backend gap)
+		restarts: 0,
 		node: dto.Node,
 		age: dto.Age,
 		status: dto.Status,
@@ -85,7 +78,6 @@ function toPodDetail(dto: model.PodDto): PodDetail {
 	}
 }
 
-// TODO-2: Consume backend.
 export async function fetchPods(cluster: string): Promise<PodRow[]> {
 	if (!hasWailsRuntime()) {
 		await delay()
@@ -95,7 +87,6 @@ export async function fetchPods(cluster: string): Promise<PodRow[]> {
 	return (dtos ?? []).map(toPodRow)
 }
 
-// TODO-3: Consume backend.
 export async function fetchPodDetail(cluster: string, name: string, namespace: string): Promise<PodDetail | undefined> {
 	if (!hasWailsRuntime()) {
 		await delay(120)
@@ -103,4 +94,29 @@ export async function fetchPodDetail(cluster: string, name: string, namespace: s
 	}
 	const dto = await fetchGetPod(name, namespace, cluster)
 	return dto ? toPodDetail(dto) : undefined
+}
+
+const mockDeployments: DeploymentRow[] = [
+	{ name: 'checkout-api', namespace: 'payments', replicas: 3, status: 'Available', age: '12d' },
+	{ name: 'fraud-scoring', namespace: 'payments', replicas: 2, status: 'Available', age: '9d' },
+]
+
+export function toDeploymentRow(dto: model.DeploymentDto): DeploymentRow {
+	const status = dto.Status === 'True' ? 'Available' : dto.Status === 'False' ? 'Unavailable' : 'Unknown'
+	return {
+		name: dto.Name,
+		namespace: dto.Namespace,
+		replicas: dto.Replicas,
+		status,
+		age: dto.Age,
+	}
+}
+
+export async function fetchDeployments(cluster: string): Promise<DeploymentRow[]> {
+	if (!hasWailsRuntime()) {
+		await delay()
+		return mockDeployments
+	}
+	const dtos = await fetchGetDeployments(cluster)
+	return (dtos ?? []).map(toDeploymentRow)
 }

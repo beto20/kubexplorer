@@ -43,7 +43,6 @@ export const podDescriptor = defineResource({
 	fetchList: fetchGetPods,
 	toRow: podToRow,
 	fetchDetail: podToDetail,
-	// Deleting a pod restarts it: the controller recreates it.
 	remove: (ref) => fetchRestartPod(ref.name, ref.namespace, ref.cluster),
 	update: (ref, patch) => fetchUpdatePod(ref.name, ref.namespace, patch as model.PodUpdate, ref.cluster),
 	troubleshoot: (ref) => fetchAutoTroubleshoot(ref.name, ref.namespace, ref.cluster, 'POD'),

@@ -7,6 +7,7 @@ import AttentionList from '../components/AttentionList.vue'
 import ActivityTimeline from '../components/ActivityTimeline.vue'
 import PinnedList from '../components/PinnedList.vue'
 import { useAsyncData } from '@/composables/useAsyncData'
+import { useActiveCluster } from '@/composables/useActiveCluster'
 import { useFleetStore } from '@/stores/fleet.store'
 import { useIssuesStore } from '@/stores/issues.store'
 import { usePinsStore } from '@/stores/pins.store'
@@ -18,18 +19,20 @@ import type { Pin } from '@/types/pin'
 const fleetStore = useFleetStore()
 const issuesStore = useIssuesStore()
 const pinsStore = usePinsStore()
+const { resolve } = useActiveCluster()
+const cluster = ref('')
 const { totals } = storeToRefs(fleetStore)
 const { items: issues, loading: issuesLoading } = storeToRefs(issuesStore)
 const { pins } = storeToRefs(pinsStore)
 
-const kpis = computed(() => (totals.value ? homeKpis(totals.value) : []))
+const kpis = computed(() => (totals.value ? homeKpis(totals.value, issues.value) : []))
 
 const { data: activity, loading: activityLoading, reload: reloadActivity } = useAsyncData(fetchActivity, [] as ActivityItem[])
-const { data: optimization, reload: reloadOptimization } = useAsyncData(fetchOptimization, {
-	cpuCores: '—',
-	memory: '—',
-	monthly: '',
-	count: 0,
+const { data: optimization, reload: reloadOptimization } = useAsyncData(() => fetchOptimization(cluster.value), {
+    cpuCores: '—',
+    memory: '—',
+    monthly: '',
+    count: 0,
 } as OptimizationSummary)
 
 const toast = ref('')
@@ -49,11 +52,12 @@ function onPinned(item: Pin) {
 	showToast(`Opening ${item.name}…`)
 }
 
-onMounted(() => {
-	fleetStore.load()
-	issuesStore.load()
-	reloadActivity()
-	reloadOptimization()
+onMounted(async () => {
+    await fleetStore.load()
+    await issuesStore.load()
+    await reloadActivity()
+    cluster.value = await resolve()
+    await reloadOptimization()
 })
 </script>
 

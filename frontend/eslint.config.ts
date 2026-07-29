@@ -35,6 +35,7 @@ export default defineConfigWithVueTs(
         name: 'app/rules',
         rules: {
             'no-console': ['error', { allow: ['warn', 'error'] }],
+            '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
         },
     },
     skipFormatting,

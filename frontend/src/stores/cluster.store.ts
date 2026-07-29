@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { fetchClusters } from '@/services/layout.service'
 import { toAppError } from '@/services/apperror'
 import type { AppError } from '@/services/apperror'
 import { model } from '../../wailsjs/go/models'
+import {fetchClusters} from "@/services/general.service.ts";
 
 export const useClusterStore = defineStore('cluster', () => {
 	const clusters = ref<model.ClusterInfo[]>([])

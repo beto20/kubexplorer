@@ -8,9 +8,10 @@ defineProps<{ values: number[] }>()
 			<div class="t">Cluster CPU &amp; memory</div>
 			<div class="legend"><span class="cpu">● CPU</span><span class="mem">● Memory</span></div>
 		</div>
-		<div class="chart">
+		<div v-if="values.length" class="chart">
 			<span v-for="(v, i) in values" :key="i" class="col" :style="{ height: v + '%' }"></span>
 		</div>
+        <div v-else class="chart-empty">No metrics source connected — the utilisation trend needs the metrics-server integration.</div>
 	</div>
 </template>
 

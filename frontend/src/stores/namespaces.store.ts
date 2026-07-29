@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { fetchGetNamespaces } from '@/services/general.service'
 
-export const useNamespacesStore = defineStore('namespaces', () => {
+export const useNamespacesStore = defineStore('mockNamespaces', () => {
 	const byCluster = ref<Record<string, string[]>>({})
 	const loading = ref(false)
 

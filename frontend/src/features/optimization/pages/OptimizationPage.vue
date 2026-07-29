@@ -5,13 +5,17 @@ import RecommendationTable from '../components/RecommendationTable.vue'
 import KxState from '@/components/shared/KxState.vue'
 import { useAsyncData } from '@/composables/useAsyncData'
 import { useActiveCluster } from '@/composables/useActiveCluster'
-import { applyRecommendation, computeSummary, fetchRecommendations, namespaces } from '../optimization.data'
+import { useNamespacesStore } from '@/stores/namespaces.store'
+import { hasWailsRuntime } from '@/services/runtime'
+import { applyRecommendation, computeSummary, fetchRecommendations, mockNamespaces } from '../optimization.data'
 import { toAppError } from '@/services/apperror'
 import type { OptRecommendation } from '../types'
 
 const { resolve } = useActiveCluster()
+const namespacesStore = useNamespacesStore()
 const cluster = ref('')
-const namespace = ref('payments')
+const namespaces = ref<string[]>([])
+const namespace = ref('')
 const analyzed = ref(false)
 
 const { data: recs, loading, error, reload } = useAsyncData<OptRecommendation[]>(() => fetchRecommendations(cluster.value, namespace.value), [])
@@ -60,7 +64,9 @@ async function applySelected() {
 }
 
 onMounted(async () => {
-	cluster.value = await resolve()
+    cluster.value = await resolve()
+    namespaces.value = hasWailsRuntime() ? await namespacesStore.load(cluster.value) : mockNamespaces
+    namespace.value = namespaces.value[0] ?? ''
 })
 </script>
 

@@ -18,8 +18,8 @@ export interface PodPhase {
 
 export interface NodeRow {
 	name: string
-	cpu: number
-	memory: number
+	cpu: number | null
+	memory: number | null
 	pods: number
 	status: string
 	statusTone: ChipTone
