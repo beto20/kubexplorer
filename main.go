@@ -40,7 +40,6 @@ func main() {
 		Bind: []interface{}{
 			app,
 			binding.BuildEnvironment(app, manager),
-			binding.BuildParameters(),
 			binding.BuildGeneral(app, manager),
 			binding.BuildNetwork(app, manager),
 			binding.BuildStorage(app, manager),
