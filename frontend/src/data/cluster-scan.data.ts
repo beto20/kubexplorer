@@ -1,5 +1,4 @@
-import { fetchClusters } from '@/services/layout.service'
-import { fetchGetNamespaces, fetchGetNodes } from '@/services/general.service'
+import {fetchClusters, fetchGetNamespaces, fetchGetNodes} from '@/services/general.service'
 import { fetchGetDeployments, fetchGetPods } from '@/services/workload.service'
 import type { model } from '../../wailsjs/go/models'
 

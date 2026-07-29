@@ -1,11 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useClusterStore } from '@/stores/cluster.store'
-import { commonRoutes } from '@/features/common/routes'
-import { generalRoutes } from '@/features/general/routes'
-import { workloadRoutes } from '@/features/workloads/routes'
-import { networkRoutes } from '@/features/network/routes'
-import { storageRoutes } from '@/features/storage/routes'
 import { explorerRoutes } from '@/features/explorer/routes'
 import { clustersRoutes } from '@/features/clusters/routes'
 import { homeRoutes } from '@/features/home/routes'
@@ -18,11 +13,6 @@ import { settingsRoutes } from '@/features/settings/routes'
 const routes: RouteRecordRaw[] = [
 	{ path: '/', redirect: '/dashboard' },
 	{ path: '/home', redirect: '/dashboard' },
-	...commonRoutes,
-	...generalRoutes,
-	...workloadRoutes,
-	...networkRoutes,
-	...storageRoutes,
 	...explorerRoutes,
 	...clustersRoutes,
 	...homeRoutes,
