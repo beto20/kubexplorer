@@ -10,6 +10,8 @@ on:
 
 env:
   APP_NAME: Tider
+  NODE_VERSION: "26.4.0"
+  WAILS_VERSION: "v2.13.0"
 
 permissions:
   contents: read
@@ -20,12 +22,13 @@ concurrency:
 
 jobs:
   quality:
+    name: Quality checks
     uses: ./.github/workflows/quality.yml
 
   release-tag:
     name: Create release tag
     needs: quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     permissions:
@@ -37,7 +40,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -53,19 +56,9 @@ jobs:
 
       - name: Show generated version
         if: steps.tag.outputs.new_tag != ''
+        shell: bash
         run: |
           echo "Generated tag: ${{ steps.tag.outputs.new_tag }}"
-
-      - name: Create GitHub release
-        if: steps.tag.outputs.new_tag != ''
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.new_tag }}
-          name: ${{ steps.tag.outputs.new_tag }}
-          body: ${{ steps.tag.outputs.changelog }}
-          prerelease: ${{ contains(steps.tag.outputs.new_tag, '-alpha') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
     name: Build macOS
@@ -76,7 +69,7 @@ jobs:
       needs.release-tag.outputs.new_tag != 'undefined'
 
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
 
     permissions:
       contents: write
@@ -147,6 +140,247 @@ jobs:
         with:
           tag_name: ${{ needs.release-tag.outputs.new_tag }}
           files: _dist/*.dmg
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    name: Build Linux
+    needs: release-tag
+
+    if: >-
+      needs.release-tag.outputs.new_tag != '' &&
+      needs.release-tag.outputs.new_tag != 'undefined'
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    env:
+      VERSION: ${{ needs.release-tag.outputs.new_tag }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-tag.outputs.new_tag }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Linux dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev
+
+      - name: Install Wails
+        shell: bash
+        run: |
+          go install "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Application: $APP_NAME"
+          echo "Version: $VERSION"
+          echo "Checked-out ref: $(git describe --tags --exact-match)"
+
+      - name: Build Linux application
+        shell: bash
+        run: |
+          set -euo pipefail
+          wails build -clean -tags webkit2_41 -ldflags "-X app/backend/common.Version=$VERSION" \
+            -platform linux/amd64 \
+            -o "$APP_NAME"
+
+      - name: Package Linux application
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE_NAME="$APP_NAME-$VERSION-linux-amd64"
+          PACKAGE_ROOT="_package"
+          PACKAGE_DIR="$PACKAGE_ROOT/$PACKAGE_NAME"
+          ARCHIVE="_dist/$PACKAGE_NAME.tar.gz"
+
+          mkdir -p "$PACKAGE_DIR" _dist
+          install -m 0755 "build/bin/$APP_NAME" "$PACKAGE_DIR/$APP_NAME"
+
+          for candidate in README.md readme.md LICENSE; do
+            if [[ -f "$candidate" ]]; then
+              cp "$candidate" "$PACKAGE_DIR/"
+            fi
+          done
+
+          tar -C "$PACKAGE_ROOT" -czf "$ARCHIVE" "$PACKAGE_NAME"
+          tar -tzf "$ARCHIVE"
+
+      - name: Upload Linux workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-linux
+          path: _dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  build-windows:
+    name: Build Windows
+    needs: release-tag
+
+    if: >-
+      needs.release-tag.outputs.new_tag != '' &&
+      needs.release-tag.outputs.new_tag != 'undefined'
+
+    runs-on: windows-2025
+    timeout-minutes: 10
+
+    env:
+      VERSION: ${{ needs.release-tag.outputs.new_tag }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-tag.outputs.new_tag }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          go install "github.com/wailsapp/wails/v2/cmd/wails@$env:WAILS_VERSION"
+
+      - name: Verify release version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "Application: $env:APP_NAME"
+          Write-Host "Version: $env:VERSION"
+
+          $checkedOutTag = git describe --tags --exact-match
+          Write-Host "Checked-out ref: $checkedOutTag"
+
+      - name: Build Windows application
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-StrictMode -Version Latest
+
+          wails build -clean -ldflags "-X app/backend/common.Version=$env:VERSION" `
+            -platform windows/amd64 `
+            -o "$env:APP_NAME.exe"
+
+      - name: Package Windows application
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-StrictMode -Version Latest
+
+          $packageName = "$env:APP_NAME-$env:VERSION-windows-amd64"
+          $packageDir = Join-Path "_package" $packageName
+          $archivePath = Join-Path "_dist" "$packageName.zip"
+
+          New-Item -ItemType Directory -Force -Path $packageDir, "_dist" | Out-Null
+          Copy-Item "build/bin/$env:APP_NAME.exe" -Destination $packageDir
+
+          foreach ($candidate in @("README.md", "readme.md", "LICENSE")) {
+            if (Test-Path $candidate) {
+              Copy-Item $candidate -Destination $packageDir
+            }
+          }
+
+          Compress-Archive -Path $packageDir -DestinationPath $archivePath -CompressionLevel Optimal
+          Get-Item $archivePath
+
+      - name: Upload Windows workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-windows
+          path: _dist/*.zip
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  publish-release:
+    name: Publish GitHub release
+
+    needs:
+      - release-tag
+      - build-macos
+      - build-linux
+      - build-windows
+
+    if: >-
+      needs.release-tag.outputs.new_tag != '' &&
+      needs.release-tag.outputs.new_tag != 'undefined'
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    permissions:
+      contents: write
+
+    env:
+      VERSION: ${{ needs.release-tag.outputs.new_tag }}
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Assets for release $VERSION:"
+          find release-assets -maxdepth 1 -type f -print
+
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 3
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-tag.outputs.new_tag }}
+          name: ${{ needs.release-tag.outputs.new_tag }}
+          body: ${{ needs.release-tag.outputs.changelog }}
+          prerelease: ${{ contains(needs.release-tag.outputs.new_tag, '-alpha') }}
+          files: release-assets/*
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
