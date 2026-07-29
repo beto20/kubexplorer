@@ -9,7 +9,6 @@ backend/backend
 frontend/tsconfig.tsbuildinfo
 frontend/test-results/*
 frontend/playwright-report/*
-frontend/package-lock.json
 Kubexplorer
 frontend/wailsjs
 internal/mock_server.go
