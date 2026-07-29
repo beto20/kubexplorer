@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 const fetchClusters = vi.fn()
-vi.mock('@/services/layout.service', () => ({
+vi.mock('@/services/general.service', () => ({
 	fetchClusters: (...args: unknown[]) => fetchClusters(...args),
 }))
 
