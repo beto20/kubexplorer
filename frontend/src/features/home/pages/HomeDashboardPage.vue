@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import {computed, onMounted, ref, watch} from 'vue'
 import { storeToRefs } from 'pinia'
 import StatTile from '@/components/shared/StatTile.vue'
 import KxState from '@/components/shared/KxState.vue'
@@ -11,10 +11,13 @@ import { useActiveCluster } from '@/composables/useActiveCluster'
 import { useFleetStore } from '@/stores/fleet.store'
 import { useIssuesStore } from '@/stores/issues.store'
 import { usePinsStore } from '@/stores/pins.store'
-import { fetchActivity, fetchOptimization, greeting, homeKpis } from '../home.data'
+import {clusterKpis, fetchActivity, fetchOptimization, homeKpis} from '../home.data'
 import type { ActivityItem, OptimizationSummary } from '../types'
 import type { Issue } from '@/types/issue'
 import type { Pin } from '@/types/pin'
+import {useClusterStore} from "@/stores/cluster.store.ts";
+import router from "@/app/router.ts";
+import {useOverlayStore} from "@/stores/overlay.store.ts";
 
 const fleetStore = useFleetStore()
 const issuesStore = useIssuesStore()
@@ -24,8 +27,31 @@ const cluster = ref('')
 const { totals } = storeToRefs(fleetStore)
 const { items: issues, loading: issuesLoading } = storeToRefs(issuesStore)
 const { pins } = storeToRefs(pinsStore)
+const clusterStore = useClusterStore()
+const overlay = useOverlayStore()
 
-const kpis = computed(() => (totals.value ? homeKpis(totals.value, issues.value) : []))
+const clustersConnected = computed(() => totals.value?.reachable ?? 0)
+const clustersTotal = computed(() => totals.value?.clusters ?? 0)
+const localeDate: string = new Date().toLocaleDateString();
+
+const currentCluster = computed(() => clusterStore.currentCluster)
+const currentSummary = computed(() => fleetStore.clusters.find((c) => c.name === currentCluster.value))
+const isClusterView = computed(() => !!currentSummary.value)
+
+const displayIssues = computed(() =>
+    isClusterView.value ? issues.value.filter((i) => i.cluster === currentCluster.value) : issues.value,
+)
+
+const displayActivity = computed(() =>
+    isClusterView.value ? activity.value.filter((a) => a.cluster === currentCluster.value) : activity.value,
+)
+
+const kpis = computed(() => {
+    if (isClusterView.value && currentSummary.value) {
+        return clusterKpis(currentSummary.value, displayIssues.value)
+    }
+    return totals.value ? homeKpis(totals.value, issues.value) : []
+})
 
 const { data: activity, loading: activityLoading, reload: reloadActivity } = useAsyncData(fetchActivity, [] as ActivityItem[])
 const { data: optimization, reload: reloadOptimization } = useAsyncData(() => fetchOptimization(cluster.value), {
@@ -52,6 +78,16 @@ function onPinned(item: Pin) {
 	showToast(`Opening ${item.name}…`)
 }
 
+watch(
+    () => clusterStore.currentCluster,
+    (name) => {
+        if (!name || name === cluster.value) return
+        cluster.value = name
+        reloadOptimization()
+        reloadActivity()
+    },
+)
+
 onMounted(async () => {
     await fleetStore.load()
     await issuesStore.load()
@@ -64,13 +100,12 @@ onMounted(async () => {
 <template>
 	<div class="page-head">
 		<div>
-			<h1>Good morning, {{ greeting.name }} 👋</h1>
-			<p>{{ greeting.date }} · {{ greeting.clusters }} clusters connected · <span class="warn">{{ greeting.issues }} issues need attention</span></p>
+			<h1>Welcome back</h1>
+			<p>{{ localeDate }} · {{ clustersConnected }} of {{ clustersTotal }} clusters connected </p>
 		</div>
 		<div class="head-actions">
-			<button class="btn" @click="showToast('Command palette')"><span class="kbd-inline">⌘K</span> Command</button>
-			<button class="btn" @click="showToast('Apply YAML')">＋ Apply YAML</button>
-			<button class="btn primary" @click="showToast('New backup')">⭢ New backup</button>
+			<button class="btn"  @click="overlay.openPalette()"><span class="kbd-inline">⌘K</span> Command</button>
+			<button class="btn primary" @click="router.push({ name: 'backup' })" >⭢ New backup</button>
 		</div>
 	</div>
 
@@ -84,16 +119,16 @@ onMounted(async () => {
 			<div class="card">
 				<div class="card-head">
 					<span>🩺 Needs attention</span>
-					<a class="link" @click="showToast('Opening Troubleshoot…')">Open Troubleshoot →</a>
+					<a class="link" @click="router.push({ name: 'troubleshoot' })">Open Troubleshoot →</a>
 				</div>
 				<KxState v-if="issuesLoading" loading />
-				<AttentionList v-else :items="issues" @action="onAttention" />
+                <AttentionList v-else :items="displayIssues" @action="onAttention" />
 			</div>
 
 			<div class="card pad">
 				<div class="card-title">Recent activity</div>
 				<KxState v-if="activityLoading" loading />
-				<ActivityTimeline v-else :items="activity" />
+                <ActivityTimeline v-else :items="displayActivity" />
 			</div>
 		</div>
 
@@ -117,19 +152,9 @@ onMounted(async () => {
 						<div class="opt-lbl">Memory</div>
 						<div class="opt-val">{{ optimization.memory }} <span class="opt-unit">GiB</span></div>
 					</div>
-				</div>
+        </div>
 				<div class="opt-note">{{ optimization.monthly }}</div>
-				<button class="btn ai full" @click="showToast('Opening Optimization…')">Review {{ optimization.count }} recommendations</button>
-			</div>
-
-			<div class="card pad">
-				<div class="card-title">Quick actions</div>
-				<div class="qa">
-					<button class="qa-btn" @click="showToast('Apply YAML')">＋ Apply YAML</button>
-					<button class="qa-btn" @click="showToast('New backup')">⭢ New backup</button>
-					<button class="qa-btn" @click="showToast('Add cluster')">◧ Add cluster</button>
-					<button class="qa-btn" @click="showToast('Docs')">📖 Docs</button>
-				</div>
+				<button class="btn ai full" @click="router.push({ name: 'optimization' })">Review {{ optimization.count }} recommendations</button>
 			</div>
 		</div>
 	</div>

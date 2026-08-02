@@ -7,7 +7,7 @@ import {fetchClusters} from "@/services/general.service.ts";
 
 export const useClusterStore = defineStore('cluster', () => {
 	const clusters = ref<model.ClusterInfo[]>([])
-	const currentCluster = ref('')
+	const currentCluster = ref(localStorage.getItem('kx.currentCluster') ?? '')
 	const loading = ref(false)
 	const error = ref<AppError | null>(null)
 	const loaded = ref(false)
@@ -31,6 +31,11 @@ export const useClusterStore = defineStore('cluster', () => {
 
 	function setCurrentCluster(name: string) {
 		currentCluster.value = name
+		if (name) {
+			localStorage.setItem('kx.currentCluster', name)
+		} else {
+			localStorage.removeItem('kx.currentCluster')
+		}
 	}
 
 	return { clusters, currentCluster, loading, error, loaded, loadClusters, setCurrentCluster }

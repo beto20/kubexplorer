@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import {onMounted, ref, watch, watchEffect} from 'vue'
 import MetricTile from '../components/MetricTile.vue'
 import TrendChart from '../components/TrendChart.vue'
 import PhaseDonut from '../components/PhaseDonut.vue'
@@ -10,17 +10,35 @@ import { useAsyncData } from '@/composables/useAsyncData'
 import { useActiveCluster } from '@/composables/useActiveCluster'
 import { fetchMonitoring, ranges } from '../monitoring.data'
 import type { MonitoringData } from '../types'
+import {useClusterStore} from "@/stores/cluster.store.ts";
+import {useBreadcrumbs} from "@/composables/useBreadcrumbs.ts";
 
 const { resolve } = useActiveCluster()
+const clusterStore = useClusterStore()
+const { setBreadcrumbs } = useBreadcrumbs()
 const cluster = ref('')
 const range = ref('Last 1h')
 
 const empty: MonitoringData = { kpis: [], cpuTrend: [], podPhase: { running: 0, pending: 0, failed: 0 }, nodes: [], events: [] }
 const { data, loading, error, reload } = useAsyncData<MonitoringData>(() => fetchMonitoring(cluster.value, range.value), empty)
 
+watchEffect(() => {
+    const clusterName = clusterStore.currentCluster || cluster.value || 'all clusters'
+    setBreadcrumbs([clusterName, 'Monitoring'])
+})
+
+watch(
+    () => clusterStore.currentCluster,
+    (name) => {
+        if (!name || name === cluster.value) return
+        cluster.value = name
+        reload()
+    },
+)
+
 onMounted(async () => {
 	cluster.value = await resolve()
-	reload()
+	await reload()
 })
 </script>
 

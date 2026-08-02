@@ -15,6 +15,7 @@ export interface ActivityItem {
 	lead: string
 	text: string
 	meta: string
+	cluster: string
 }
 
 export interface OptimizationSummary {
@@ -22,11 +23,4 @@ export interface OptimizationSummary {
 	memory: string
 	monthly: string
 	count: number
-}
-
-export interface Greeting {
-	name: string
-	date: string
-	clusters: number
-	issues: number
 }

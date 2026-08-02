@@ -9,9 +9,15 @@ export const useThemeStore = defineStore('theme', () => {
 	const stored = localStorage.getItem(STORAGE_KEY)
 	const theme = ref<Theme>(stored === 'light' ? 'light' : 'dark')
 
+	function applyToRoot(next: Theme) {
+		document.documentElement.classList.toggle('theme-light', next === 'light')
+	}
+	applyToRoot(theme.value)
+
 	function set(next: Theme) {
 		theme.value = next
 		localStorage.setItem(STORAGE_KEY, next)
+		applyToRoot(next)
 	}
 
 	function toggle() {
