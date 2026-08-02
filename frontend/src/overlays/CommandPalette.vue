@@ -119,7 +119,7 @@ function onKeydown(e: KeyboardEvent) {
 
 onMounted(async () => {
 	inputEl.value?.focus()
-	pods.value = await fetchPods(clusterStore.currentCluster || 'prod-eu-west-1')
+	pods.value = await fetchPods(clusterStore.currentCluster || '')
 })
 </script>
 

@@ -1,13 +1,21 @@
 import { delay } from '@/data/mock-latency'
 import {fetchGetDeployments, fetchGetPod, fetchGetPods} from '@/services/workload.service'
 import { hasWailsRuntime } from '@/services/runtime'
-import type { PodDetail, PodRow, ResourceTab } from './types'
+import type {IngressRow, NodeRow, PodDetail, PodRow, PvcRow, PvRow, ResourceTab, ServiceRow} from './types'
 import type { model } from '../../../wailsjs/go/models'
 import type {DeploymentRow} from "@/types/workload.type.ts";
+import {fetchGetIngresses, fetchGetServices} from "@/services/network.service.ts";
+import {fetchGetPersistentVolumes, fetchGetPersistentVolumesClaim} from "@/services/storage.service.ts";
+import {fetchGetNodes} from "@/services/general.service.ts";
 
 export const resourceTabs: ResourceTab[] = [
-	{ key: 'pod', label: 'Pods'},
-	{ key: 'deployment', label: 'Deployments'},
+	{ key: 'pod', label: 'Pods' },
+	{ key: 'deployment', label: 'Deployments' },
+	{ key: 'service', label: 'Service' },
+	{ key: 'ingress', label: 'Ingress' },
+	{ key: 'pv', label: 'Persistent Volumes' },
+	{ key: 'pvc', label: 'Persistent Volume Claims' },
+	{ key: 'node', label: 'Nodes' },
 ]
 
 export const mockNamespaces = ['payments', 'ml', 'analytics', 'kube-system', 'default']
@@ -119,4 +127,108 @@ export async function fetchDeployments(cluster: string): Promise<DeploymentRow[]
 	}
 	const dtos = await fetchGetDeployments(cluster)
 	return (dtos ?? []).map(toDeploymentRow)
+}
+
+const SPACE = '—'
+
+function toServiceRow(dto: model.ServiceDto): ServiceRow {
+	return {
+		name: dto.Name,
+		namespace: dto.Namespace,
+		type: dto.Type || SPACE,
+		clusterIp: dto.InternalIp || SPACE,
+		externalIp: dto.ExternalIp || SPACE,
+		port: dto.Port ? String(dto.Port) : SPACE,
+		age: dto.Age,
+		status: dto.Status || SPACE,
+	}
+}
+
+export async function fetchServices(cluster: string): Promise<ServiceRow[]> {
+	if (!hasWailsRuntime()) {
+		await delay()
+	}
+
+	const dtos = await fetchGetServices(cluster)
+	return (dtos ?? []).map(toServiceRow)
+}
+
+function toIngressRow(dto: model.IngressDto): IngressRow {
+	const hosts = [...new Set((dto.Rules ?? []).map((r) => r.Host).filter(Boolean))]
+
+	return {
+		name: dto.Name,
+		namespace: dto.Namespace,
+		age: dto.Age,
+		hosts: hosts.length ? hosts.join(', ') : SPACE,
+	}
+}
+
+export async function fetchIngresses(cluster: string): Promise<IngressRow[]> {
+	if (!hasWailsRuntime()) {
+		await delay()
+	}
+
+	const dtos = await fetchGetIngresses(cluster)
+	return (dtos ?? []).map(toIngressRow)
+}
+
+function toPersistentVolumeRow(dto: model.PersistentVolumeDto): PvRow {
+	return {
+		name: dto.Name,
+		claim: dto.Claim || SPACE,
+		age: dto.Age,
+		status: dto.Status || SPACE,
+		capacity: dto.Capacity || SPACE,
+		storageClass: dto.StorageClass || SPACE,
+	}
+}
+
+export async function fetchPersistentVolumes(cluster: string): Promise<PvRow[]> {
+	if (!hasWailsRuntime()) {
+		await delay()
+	}
+
+	const dtos = await fetchGetPersistentVolumes(cluster)
+	return (dtos ?? []).map(toPersistentVolumeRow)
+}
+
+function toPersistentVolumeClaimRow(dto: model.PersistentVolumeClaimDto): PvcRow {
+	return {
+		name: dto.Name,
+		namespace: dto.Namespace,
+		capacity: dto.Size || SPACE,
+		storageClass: dto.StorageClass || SPACE,
+		age: dto.Age,
+		status: dto.Status || SPACE,
+	}
+}
+
+export async function fetchPersistentVolumeClaims(cluster: string): Promise<PvcRow[]> {
+	if (!hasWailsRuntime()) {
+		await delay()
+	}
+
+	const dtos = await fetchGetPersistentVolumesClaim(cluster)
+	return (dtos ?? []).map(toPersistentVolumeClaimRow)
+}
+
+function toNodeRow(dto: model.NodeDto): NodeRow {
+	return {
+		name: dto.Name,
+		version: dto.Version || dto.KubeletVersion || SPACE,
+		os: dto.OperatingSystem || SPACE,
+		cpu: dto.Resource?.Cpu != null ? String(dto.Resource.Cpu) : SPACE,
+		memory: dto.Resource?.Memory != null ? String(dto.Resource.Memory) : SPACE,
+		age: dto.Age
+	}
+}
+
+export async function fetchNodes(cluster: string): Promise<NodeRow[]> {
+	if (!hasWailsRuntime()) {
+		await delay()
+	}
+
+	const dtos = await fetchGetNodes(cluster)
+	return (dtos ?? []).map(toNodeRow)
 }

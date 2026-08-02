@@ -69,6 +69,9 @@ const emit = defineEmits<{
 	padding: 11px 16px;
 	border-bottom: 1px solid var(--border-soft);
 	background: var(--hover);
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 .tbl tbody td {
 	padding: 12px 16px;
