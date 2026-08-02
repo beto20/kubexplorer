@@ -5,7 +5,7 @@ import { fetchResourceTuning } from '@/services/workload.service'
 import { hasWailsRuntime } from '@/services/runtime'
 import { computeSummary, toRecommendation } from '@/features/optimization/optimization.data'
 import type { ActivityItem, Kpi, OptimizationSummary } from './types'
-import type { FleetTotals } from '@/types/fleet'
+import type {ClusterSummary, FleetTotals} from '@/types/fleet'
 import type { Issue } from '@/types/issue'
 
 
@@ -32,14 +32,29 @@ export function homeKpis(totals: FleetTotals, issues: Issue[]): Kpi[] {
 	]
 }
 
+export function clusterKpis(summary: ClusterSummary, issues: Issue[]): Kpi[] {
+	return [
+		{ label: '▦ Nodes', value: String(summary.nodes) },
+		{ label: '▤ Workloads', value: String(summary.pods), unit: 'pods' },
+		{ label: '◫ Namespaces', value: String(summary.namespaces) },
+		{
+			label: '🩺 Open issues',
+			value: String(issues.length),
+			valueTone: issues.length ? 'warn' : 'default',
+			hint: issuesBreakdown(issues),
+			hintTone: issues.length ? 'down' : undefined,
+		},
+	]
+}
+
 // TODO-6: Consume backend.
 export async function fetchActivity(): Promise<ActivityItem[]> {
 	await delay()
 	return [
-		{ id: 'e1', kind: 'deploy', lead: 'Deployed', text: 'checkout-api:1.18.2 to prod-eu-west-1', meta: 'payments · 3h ago · by you' },
-		{ id: 'e2', kind: 'restore', lead: 'Restored', text: 'daily-full snapshot into staging-eu-west-1', meta: '264 resources · 2h ago · by you' },
-		{ id: 'e3', kind: 'tuning', lead: 'Applied tuning', text: 'to ledger-worker — limit 2Gi → 1Gi', meta: 'optimization · 1h ago · by you' },
-		{ id: 'e4', kind: 'scale', lead: 'Scaled', text: 'fraud-scoring 2 → 4 replicas', meta: 'payments · 22m ago · autoscaler' },
+		{ id: 'e1', kind: 'deploy', lead: 'Deployed', text: 'checkout-api:1.18.2 to prod-eu-west-1', meta: 'payments · 3h ago · by you', cluster: 'prod-eu-west-1' },
+		{ id: 'e2', kind: 'restore', lead: 'Restored', text: 'daily-full snapshot into staging-eu-west-1', meta: '264 resources · 2h ago · by you', cluster: 'minikube' },
+		{ id: 'e3', kind: 'tuning', lead: 'Applied tuning', text: 'to ledger-worker — limit 2Gi → 1Gi', meta: 'optimization · 1h ago · by you', cluster: 'minikube' },
+		{ id: 'e4', kind: 'scale', lead: 'Scaled', text: 'fraud-scoring 2 → 4 replicas', meta: 'payments · 22m ago · autoscaler', cluster: 'minikube' },
 	]
 }
 
@@ -58,7 +73,7 @@ async function aggregateTuning(cluster: string): Promise<OptimizationSummary> {
 	return {
 		cpuCores: String(summary.reclaimableCpu),
 		memory: String(summary.reclaimableMemory),
-		monthly: `≈ €${summary.monthly} / month in ${cluster}.`,
+		monthly: `≈ $${summary.monthly} / month in ${cluster}.`,
 		count: summary.flagged,
 	}
 }
@@ -67,7 +82,6 @@ async function aggregateTuning(cluster: string): Promise<OptimizationSummary> {
 export async function fetchOptimization(cluster: string): Promise<OptimizationSummary> {
 	if (!hasWailsRuntime()) {
 		await delay()
-		return { cpuCores: '6.4', memory: '12.8', monthly: '≈ €310 / month across prod node groups.', count: 17 }
 	}
 	let cached = tuningCache.get(cluster)
 	if (!cached) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import {computed, onMounted, ref, watch} from 'vue'
 import { storeToRefs } from 'pinia'
 import IssueQueue from '../components/IssueQueue.vue'
 import DiagnosisPanel from '../components/DiagnosisPanel.vue'
@@ -10,7 +10,9 @@ import { fetchRestartPod } from '@/services/workload.service'
 import { hasWailsRuntime } from '@/services/runtime'
 import { toAppError } from '@/services/apperror'
 import type { Diagnosis, DiagnosisAction } from '../types'
+import {useRoute} from "vue-router";
 
+const route = useRoute()
 const issuesStore = useIssuesStore()
 const { items: issues } = storeToRefs(issuesStore)
 
@@ -35,6 +37,16 @@ function select(id: string) {
 	reload()
 }
 
+function selectFromRoute() {
+    const wanted = route.query.issue
+    const match = typeof wanted === 'string' ? issues.value.find((i) => i.name === wanted) : undefined
+    if (match) {
+        select(match.id)
+    } else if (issues.value.length) {
+        select(issues.value[0].id)
+    }
+}
+
 async function onAction(action: DiagnosisAction) {
 	const issue = selectedIssue.value
 	if (!issue) {
@@ -52,11 +64,18 @@ async function onAction(action: DiagnosisAction) {
 	showToast(action.label)
 }
 
+watch(
+    () => route.query.issue,
+    () => {
+        if (issues.value.length) {
+            selectFromRoute()
+        }
+    },
+)
+
 onMounted(async () => {
-	await issuesStore.load()
-	if (issues.value.length) {
-		select(issues.value[0].id)
-	}
+    await issuesStore.load()
+    selectFromRoute()
 })
 </script>
 
