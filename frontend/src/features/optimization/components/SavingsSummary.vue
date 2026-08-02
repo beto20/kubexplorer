@@ -34,7 +34,7 @@ const donut = computed(() => {
 		<div class="card stat">
 			<div class="lbl">✦ Reclaimable memory</div>
 			<div class="val">{{ summary.reclaimableMemory }} <small>GiB</small></div>
-			<div class="hint">≈ €{{ summary.monthly }} / month (estimated)</div>
+			<div class="hint">≈ ${{ summary.monthly }} / month (estimated)</div>
 		</div>
 	</div>
 </template>

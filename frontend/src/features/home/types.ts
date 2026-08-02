@@ -15,6 +15,7 @@ export interface ActivityItem {
 	lead: string
 	text: string
 	meta: string
+	cluster: string
 }
 
 export interface OptimizationSummary {
