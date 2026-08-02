@@ -1,12 +1,7 @@
 <script setup lang="ts">
-import StatusChip from '@/components/shared/StatusChip.vue'
-import type { DeploymentRow } from '../types'
+import type { IngressRow } from '../types'
 
-defineProps<{ rows: DeploymentRow[] }>()
-
-const emit = defineEmits<{
-	(e: 'troubleshoot', row: DeploymentRow): void
-}>()
+defineProps<{ rows: IngressRow[] }>()
 </script>
 
 <template>
@@ -16,27 +11,19 @@ const emit = defineEmits<{
 				<tr>
 					<th>Name</th>
 					<th>Namespace</th>
-					<th>Replicas</th>
+					<th>Hosts</th>
 					<th>Age</th>
-					<th>Status</th>
-					<th></th>
 				</tr>
 			</thead>
 			<tbody>
 				<tr v-for="row in rows" :key="`${row.namespace}/${row.name}`">
 					<td><span class="name">{{ row.name }}</span></td>
 					<td>{{ row.namespace }}</td>
-					<td class="mono">{{ row.replicas }}</td>
+					<td class="mono">{{ row.hosts }}</td>
 					<td>{{ row.age }}</td>
-					<td><StatusChip :status="row.status" /></td>
-					<td>
-						<div class="row-actions" @click.stop>
-							<button class="ra heal" title="Troubleshoot" @click="emit('troubleshoot', row)">🩺</button>
-						</div>
-					</td>
 				</tr>
 				<tr v-if="rows.length === 0">
-					<td colspan="6" class="empty">No deployments match the current filters.</td>
+					<td colspan="4" class="empty">No ingresses match the current filters.</td>
 				</tr>
 			</tbody>
 		</table>
@@ -59,9 +46,9 @@ const emit = defineEmits<{
 	padding: 11px 16px;
 	border-bottom: 1px solid var(--border-soft);
 	background: var(--hover);
-    position: sticky;
-    top: 0;
-    z-index: 1;
+	position: sticky;
+	top: 0;
+	z-index: 1;
 }
 .tbl tbody td {
 	padding: 12px 16px;
@@ -83,28 +70,5 @@ const emit = defineEmits<{
 	text-align: center;
 	color: var(--text-faint);
 	padding: 40px 0;
-}
-.row-actions {
-	display: flex;
-	gap: 4px;
-}
-.ra {
-	width: 26px;
-	height: 26px;
-	display: grid;
-	place-items: center;
-	border-radius: 5px;
-	color: var(--text-faint);
-	font-size: 13px;
-	background: none;
-	border: none;
-	cursor: pointer;
-}
-.ra:hover {
-	background: var(--surface-3);
-	color: var(--text);
-}
-.ra.heal:hover {
-	color: var(--accent);
 }
 </style>

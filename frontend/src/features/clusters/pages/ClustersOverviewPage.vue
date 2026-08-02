@@ -138,6 +138,9 @@ onMounted(() => {
 	display: grid;
 	grid-template-columns: repeat(2, 1fr);
 	gap: 16px;
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 .toast {

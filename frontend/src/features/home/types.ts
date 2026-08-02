@@ -23,10 +23,3 @@ export interface OptimizationSummary {
 	monthly: string
 	count: number
 }
-
-export interface Greeting {
-	name: string
-	date: string
-	clusters: number
-	issues: number
-}

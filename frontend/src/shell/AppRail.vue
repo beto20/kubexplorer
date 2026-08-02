@@ -1,21 +1,36 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import {computed, onMounted} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandMark from '@/components/shared/BrandMark.vue'
 import { useOverlayStore } from '@/stores/overlay.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { footerNav, navGroups } from './nav.config'
 import type { NavItem } from './nav.config'
+import {useClusterStore} from "@/stores/cluster.store.ts";
+import {useFleetStore} from "@/stores/fleet.store.ts";
 
 const route = useRoute()
 const router = useRouter()
 const overlay = useOverlayStore()
 const settings = useSettingsStore()
+const clusterStore = useClusterStore()
+const fleetStore = useFleetStore()
 
 const active = computed(() => route.meta.nav)
-const cluster = computed(() => route.meta.cluster ?? 'all clusters')
-const clusterSub = computed(() => route.meta.clusterSub ?? '')
+const cluster = computed(() => clusterStore.currentCluster || route.meta.cluster || 'all clusters')
+const currentSummary = computed(() => fleetStore.clusters.find(c => c.name === cluster.value))
+const clusterSub = computed(() => {
+    const summary = currentSummary.value
+    if (!summary) {
+        return route.meta.clusterSub ?? ''
+    }
+
+    const version = summary.source.match(/v\d+\.\d+(?:\.\d+)?/)?.[0]
+    return [version, `${summary.pods} pods`].filter(Boolean).join(' · ')
+})
 const clusterEnv = computed(() => settings.envFor(cluster.value))
+
+onMounted(() => fleetStore.load())
 
 function go(item: NavItem) {
 	if (item.route && !item.soon) {
