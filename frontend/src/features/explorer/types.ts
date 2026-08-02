@@ -46,7 +46,52 @@ export interface DeploymentRow {
 	age: string
 }
 
+export interface ServiceRow {
+	name: string
+	namespace: string
+	type: string
+	clusterIp: string
+	externalIp: string
+	port: string
+	age: string
+	status: string
+}
+
+export interface IngressRow {
+	name: string
+	namespace: string
+	hosts: string
+	age: string
+}
+
+export interface PvRow {
+	name: string
+	capacity: string
+	storageClass: string
+	claim: string
+	age: string
+	status: string
+}
+
+export interface PvcRow {
+	name: string
+	namespace: string
+	capacity: string
+	storageClass: string
+	age: string
+	status: string
+}
+
+export interface NodeRow {
+	name: string
+	version: string
+	os: string
+	cpu: string
+	memory: string
+	age: string
+}
+
 export interface ResourceTab {
-	key: 'pod' | 'deployment'
+	key: 'pod' | 'deployment' | 'service' | 'ingress' | 'pv' | 'pvc' | 'node'
 	label: string
 }

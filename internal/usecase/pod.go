@@ -32,7 +32,6 @@ func (p *podUseCase) UpdatePod(ctx context.Context, ref model.ResourceRef, dto m
 	return p.client.UpdatePod(ctx, ref, dto)
 }
 
-// RestartPod deletes the pod; its controller recreates it.
 func (p *podUseCase) RestartPod(ctx context.Context, ref model.ResourceRef) error {
 	return p.client.DeletePod(ctx, ref)
 }

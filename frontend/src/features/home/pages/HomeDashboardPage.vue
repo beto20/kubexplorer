@@ -11,7 +11,7 @@ import { useActiveCluster } from '@/composables/useActiveCluster'
 import { useFleetStore } from '@/stores/fleet.store'
 import { useIssuesStore } from '@/stores/issues.store'
 import { usePinsStore } from '@/stores/pins.store'
-import { fetchActivity, fetchOptimization, greeting, homeKpis } from '../home.data'
+import { fetchActivity, fetchOptimization, homeKpis } from '../home.data'
 import type { ActivityItem, OptimizationSummary } from '../types'
 import type { Issue } from '@/types/issue'
 import type { Pin } from '@/types/pin'
@@ -24,6 +24,10 @@ const cluster = ref('')
 const { totals } = storeToRefs(fleetStore)
 const { items: issues, loading: issuesLoading } = storeToRefs(issuesStore)
 const { pins } = storeToRefs(pinsStore)
+
+const clustersConnected = computed(() => totals.value?.reachable ?? 0)
+const clustersTotal = computed(() => totals.value?.clusters ?? 0)
+const localeDate: string = new Date().toLocaleDateString();
 
 const kpis = computed(() => (totals.value ? homeKpis(totals.value, issues.value) : []))
 
@@ -64,8 +68,8 @@ onMounted(async () => {
 <template>
 	<div class="page-head">
 		<div>
-			<h1>Good morning, {{ greeting.name }} 👋</h1>
-			<p>{{ greeting.date }} · {{ greeting.clusters }} clusters connected · <span class="warn">{{ greeting.issues }} issues need attention</span></p>
+			<h1>Welcome back</h1>
+			<p>{{ localeDate }} · {{ clustersConnected }} of {{ clustersTotal }} clusters connected </p>
 		</div>
 		<div class="head-actions">
 			<button class="btn" @click="showToast('Command palette')"><span class="kbd-inline">⌘K</span> Command</button>

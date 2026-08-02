@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch} from 'vue'
+import {computed, onMounted, ref, watch, watchEffect} from 'vue'
 import PodTable from '../components/PodTable.vue'
 import DeploymentTable from '../components/DeploymentTable.vue'
 import PodDetailDrawer from '../components/PodDetailDrawer.vue'
@@ -8,20 +8,53 @@ import { useAsyncData } from '@/composables/useAsyncData'
 import { useActiveCluster } from '@/composables/useActiveCluster'
 import { useNamespacesStore } from '@/stores/namespaces.store'
 import { hasWailsRuntime } from '@/services/runtime'
-import { fetchDeployments, fetchPodDetail, fetchPods, mockNamespaces, resourceTabs } from '../explorer.data'
-import type { DeploymentRow, PodDetail, PodRow, ResourceTab } from '../types'
+import {
+    fetchDeployments, fetchIngresses, fetchNodes, fetchPersistentVolumeClaims, fetchPersistentVolumes,
+    fetchPodDetail,
+    fetchPods,
+    fetchServices,
+    mockNamespaces,
+    resourceTabs
+} from '../explorer.data'
+import type {
+    DeploymentRow,
+    IngressRow,
+    NodeRow,
+    PodDetail,
+    PodRow,
+    PvcRow,
+    PvRow,
+    ResourceTab,
+    ServiceRow
+} from '../types'
+import {useClusterStore} from "@/stores/cluster.store.ts";
+import type {AppError} from "@/services/apperror.ts";
+import ServiceTable from "@/features/explorer/components/ServiceTable.vue";
+import IngressTable from "@/features/explorer/components/IngressTable.vue";
+import PvTable from "@/features/explorer/components/PvTable.vue";
+import PvcTable from "@/features/explorer/components/PvcTable.vue";
+import NodeTable from "@/features/explorer/components/NodeTable.vue";
+import {useBreadcrumbs} from "@/composables/useBreadcrumbs.ts";
 
 const { resolve } = useActiveCluster()
 const cluster = ref('')
+const namespacesStore = useNamespacesStore()
+const clusterStore = useClusterStore()
+const { setBreadcrumbs } = useBreadcrumbs()
+
 const { data: pods, loading, error, reload } = useAsyncData(() => fetchPods(cluster.value), [] as PodRow[])
 const { data: deployments, loading: depsLoading, error: depsError, reload: reloadDeps } = useAsyncData(() => fetchDeployments(cluster.value), [] as DeploymentRow[])
-const namespacesStore = useNamespacesStore()
+const { data: services, loading: svcLoading, error: svcError, reload: reloadServices } = useAsyncData(() => fetchServices(cluster.value), [] as ServiceRow[])
+const { data: ingresses, loading: ingLoading, error: ingError, reload: reloadIngresses } = useAsyncData(() => fetchIngresses(cluster.value), [] as IngressRow[])
+const { data: pvs, loading: pvLoading, error: pvError, reload: reloadPvs } = useAsyncData(() => fetchPersistentVolumes(cluster.value), [] as PvRow[])
+const { data: pvcs, loading: pvcLoading, error: pvcError, reload: reloadPvcs } = useAsyncData(() => fetchPersistentVolumeClaims(cluster.value), [] as PvcRow[])
+const { data: nodes, loading: nodeLoading, error: nodeError, reload: reloadNodes } = useAsyncData(() => fetchNodes(cluster.value), [] as NodeRow[])
 
 const search = ref('')
 const namespaceFilter = ref('')
 const statusFilter = ref('')
 const activeTab = ref<ResourceTab['key']>('pod')
-const depsLoaded = ref(false)
+const loadedTabs = ref<Set<ResourceTab['key']>>(new Set(['pod']))
 const namespaceOptions = ref<string[]>([])
 
 const selectedName = ref('')
@@ -31,11 +64,77 @@ const toast = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 const isPods = computed(() => activeTab.value === 'pod')
-const statusOptions = computed(() => [...new Set((isPods.value ? pods.value.map((p) => p.status) : deployments.value.map((d) => d.status)))])
-const tabCount = computed(() => (t: ResourceTab) => (t.key === 'pod' ? String(pods.value.length) : depsLoaded.value ? String(deployments.value.length) : '…'))
-const showState = computed(() => (isPods.value ? loading.value || error.value : depsLoading.value || depsError.value))
+const isDeployments = computed(() => activeTab.value === 'deployment')
+const activeMeta = computed(() => resourceTabs.find((t) => t.key === activeTab.value))
+const isNamespaced = computed(() => activeTab.value !== 'pv' && activeTab.value !== 'node')
 
-function matches(row: { name: string; namespace: string; status: string }) {
+const reloaders: Record<ResourceTab['key'], () => void> = {
+    pod: reload,
+    deployment: reloadDeps,
+    service: reloadServices,
+    ingress: reloadIngresses,
+    pv: reloadPvs,
+    pvc: reloadPvcs,
+    node: reloadNodes,
+}
+
+const activeRows = computed(() => {
+    switch (activeTab.value) {
+        case 'deployment': return deployments.value
+        case 'service': return services.value
+        case 'ingress': return ingresses.value
+        case 'pv': return pvs.value
+        case 'pvc': return pvcs.value
+        case 'node': return nodes.value
+        default: return pods.value
+    }
+})
+const statusOptions = computed(
+    () => [...new Set(activeRows.value.map((r) => (r as { status?: string }).status).filter(Boolean))] as string[],
+)
+
+const activeLoading = computed(() => {
+    switch (activeTab.value) {
+        case 'deployment': return depsLoading.value
+        case 'service': return svcLoading.value
+        case 'ingress': return ingLoading.value
+        case 'pv': return pvLoading.value
+        case 'pvc': return pvcLoading.value
+        case 'node': return nodeLoading.value
+        default: return loading.value
+    }
+})
+const activeError = computed<AppError | null>(() => {
+    switch (activeTab.value) {
+        case 'deployment': return depsError.value
+        case 'service': return svcError.value
+        case 'ingress': return ingError.value
+        case 'pv': return pvError.value
+        case 'pvc': return pvcError.value
+        case 'node': return nodeError.value
+        default: return error.value
+    }
+})
+const showState = computed(() => activeLoading.value || Boolean(activeError.value))
+
+function tabCount(t: ResourceTab) {
+    if (!loadedTabs.value.has(t.key)) return '…'
+    switch (t.key) {
+        case 'deployment': return String(deployments.value.length)
+        case 'service': return String(services.value.length)
+        case 'ingress': return String(ingresses.value.length)
+        case 'pv': return String(pvs.value.length)
+        case 'pvc': return String(pvcs.value.length)
+        case 'node': return String(nodes.value.length)
+        default: return String(pods.value.length)
+    }
+}
+
+function reloadActive() {
+    reloaders[activeTab.value]()
+}
+
+function matches(row: { name: string; namespace?: string; status?: string }) {
     const byName = !search.value || row.name.toLowerCase().includes(search.value.toLowerCase())
     const byNs = !namespaceFilter.value || row.namespace === namespaceFilter.value
     const byStatus = !statusFilter.value || row.status === statusFilter.value
@@ -44,6 +143,11 @@ function matches(row: { name: string; namespace: string; status: string }) {
 
 const filteredPods = computed(() => pods.value.filter(matches))
 const filteredDeployments = computed(() => deployments.value.filter(matches))
+const filteredServices = computed(() => services.value.filter(matches))
+const filteredIngresses = computed(() => ingresses.value.filter(matches))
+const filteredPvs = computed(() => pvs.value.filter(matches))
+const filteredPvcs = computed(() => pvcs.value.filter(matches))
+const filteredNodes = computed(() => nodes.value.filter(matches))
 
 function showToast(message: string) {
     toast.value = message
@@ -52,13 +156,13 @@ function showToast(message: string) {
 }
 
 async function openDetail(row: PodRow) {
-	const detail = await fetchPodDetail(cluster.value, row.name, row.namespace)
-	if (!detail) {
-		return
-	}
-	selectedName.value = row.name
-	selectedPod.value = detail
-	drawerOpen.value = true
+    const detail = await fetchPodDetail(cluster.value, row.name, row.namespace)
+    if (!detail) {
+        return
+    }
+    selectedName.value = row.name
+    selectedPod.value = detail
+    drawerOpen.value = true
 }
 
 function onTroubleshoot(row: { name: string }) {
@@ -66,76 +170,109 @@ function onTroubleshoot(row: { name: string }) {
 }
 
 function onEdit(row: PodRow) {
-	openDetail(row)
+    openDetail(row)
 }
 
 function onDiagnose(pod: PodDetail) {
-	showToast(`Diagnosing ${pod.name}…`)
+    showToast(`Diagnosing ${pod.name}…`)
 }
 
 function onAction(label: string, pod: PodDetail) {
-	showToast(`${label} · ${pod.name}`)
+    showToast(`${label} · ${pod.name}`)
 }
 
 watch(activeTab, (tab) => {
+    search.value = ''
+    namespaceFilter.value = ''
     statusFilter.value = ''
-    if (tab === 'deployment' && !depsLoaded.value) {
-        depsLoaded.value = true
-        reloadDeps()
+    if (!loadedTabs.value.has(tab)) {
+        loadedTabs.value.add(tab)
+        reloaders[tab]()
     }
 })
 
+watchEffect(() => {
+    const clusterName = clusterStore.currentCluster || cluster.value || 'all clusters'
+    setBreadcrumbs([clusterName, activeMeta.value?.label ?? ''])
+})
+
+async function loadNamespaces() {
+    namespaceOptions.value = hasWailsRuntime() ? await namespacesStore.load(cluster.value) : mockNamespaces
+}
+
+watch(
+    () => clusterStore.currentCluster,
+    (name) => {
+        if (!name || name === cluster.value) return
+        cluster.value = name
+        search.value = ''
+        namespaceFilter.value = ''
+        statusFilter.value = ''
+        loadedTabs.value = new Set([activeTab.value])
+        reloadActive()
+        loadNamespaces()
+    },
+)
+
 onMounted(async () => {
     cluster.value = await resolve()
-    reload()
-    namespaceOptions.value = hasWailsRuntime() ? await namespacesStore.load(cluster.value) : mockNamespaces
+    await reload()
+    await loadNamespaces()
 })
 </script>
 
 <template>
-	<div class="page-head">
+    <div class="page-head">
         <div>
-            <h1>{{ isPods ? 'Pods' : 'Deployments' }}</h1>
-            <p>{{ isPods ? `${pods.length} pods` : `${deployments.length} deployments` }} · {{ namespaceOptions.length }} namespaces</p>
+            <h1>{{ activeMeta?.label ?? '' }}</h1>
+            <p>{{ activeRows.length }} {{ (activeMeta?.label ?? '').toLowerCase() }}<template v-if="isNamespaced"> · {{ namespaceOptions.length }} namespaces</template></p>
         </div>
-		<div class="head-actions">
-			<button class="btn">⭢ Export manifest</button>
-			<button class="btn primary">＋ Apply YAML</button>
-		</div>
-	</div>
+        <div class="head-actions">
+            <button class="btn">⭢ Export manifest</button>
+            <button class="btn primary">＋ Apply YAML</button>
+        </div>
+    </div>
 
-	<div class="tabs">
-		<button v-for="t in resourceTabs" :key="t.key" class="tab" :class="{ on: t.key === activeTab }" @click="activeTab = t.key">
-			{{ t.label }} · {{ tabCount(t) }}
-		</button>
-	</div>
+    <div class="tabs">
+        <button v-for="t in resourceTabs" :key="t.key" class="tab" :class="{ on: t.key === activeTab }" @click="activeTab = t.key">
+            {{ t.label }} · {{ tabCount(t) }}
+        </button>
+    </div>
 
-	<div class="card">
-		<div class="toolbar">
-			<input v-model="search" class="tb-search" placeholder="⌕ Filter by name…" />
-			<select v-model="namespaceFilter" class="select">
-				<option value="">Namespace: all</option>
-				<option v-for="ns in namespaceOptions" :key="ns" :value="ns">{{ ns }}</option>
-			</select>
-			<select v-model="statusFilter" class="select">
-				<option value="">Status: all</option>
-				<option v-for="s in statusOptions" :key="s" :value="s">{{ s }}</option>
-			</select>
-		</div>
+    <div class="card">
+        <div class="toolbar">
+            <input v-model="search" class="tb-search" placeholder="⌕ Filter by name…" />
+            <select v-if="isNamespaced" v-model="namespaceFilter" class="select">
+                <option value="">Namespace: all</option>
+                <option v-for="ns in namespaceOptions" :key="ns" :value="ns">{{ ns }}</option>
+            </select>
+            <select v-if="statusOptions.length" v-model="statusFilter" class="select">
+                <option value="">Status: all</option>
+                <option v-for="s in statusOptions" :key="s" :value="s">{{ s }}</option>
+            </select>
+        </div>
 
-        <KxState v-if="showState" :loading="isPods ? loading : depsLoading" :error="isPods ? error : depsError" @retry="isPods ? reload() : reloadDeps()" />
-        <template v-else>
-            <PodTable v-if="isPods" :rows="filteredPods" :selected="selectedName" @select="openDetail" @troubleshoot="onTroubleshoot" @edit="onEdit" />
-            <DeploymentTable v-else :rows="filteredDeployments" @troubleshoot="onTroubleshoot" />
-        </template>
-	</div>
+        <div class="table-scroll">
+            <KxState v-if="showState" :loading="activeLoading" :error="activeError" @retry="reloadActive" />
+            <template v-else>
+                <PodTable v-if="isPods" :rows="filteredPods" :selected="selectedName" @select="openDetail" @troubleshoot="onTroubleshoot" @edit="onEdit" />
+                <DeploymentTable v-else-if="isDeployments" :rows="filteredDeployments" @troubleshoot="onTroubleshoot" />
+                <ServiceTable v-else-if="activeTab === 'service'" :rows="filteredServices" />
+                <IngressTable v-else-if="activeTab === 'ingress'" :rows="filteredIngresses" />
+                <PvTable v-else-if="activeTab === 'pv'" :rows="filteredPvs" />
+                <PvcTable v-else-if="activeTab === 'pvc'" :rows="filteredPvcs" />
+                <NodeTable v-else-if="activeTab === 'node'" :rows="filteredNodes" />
+            </template>
+        </div>
+    </div>
 
-	<PodDetailDrawer :pod="selectedPod" :open="drawerOpen" @close="drawerOpen = false" @diagnose="onDiagnose" @action="onAction" />
+    <PodDetailDrawer :pod="selectedPod" :open="drawerOpen" @close="drawerOpen = false" @diagnose="onDiagnose" @action="onAction" />
 
-	<Transition name="toast">
-		<div v-if="toast" class="toast">{{ toast }}</div>
-	</Transition>
+    <Transition name="toast">
+        <div v-if="toast" class="toast">{{ toast }}</div>
+    </Transition>
 </template>
+
 
 <style scoped>
 .page-head {
@@ -217,6 +354,11 @@ onMounted(async () => {
 	gap: 10px;
 	padding: 12px 14px;
 	border-bottom: 1px solid var(--border-soft);
+}
+.table-scroll {
+    max-height: calc(100vh - 320px);
+    overflow-y: auto;
+    overflow-x: auto;
 }
 .tb-search {
 	flex: 1;

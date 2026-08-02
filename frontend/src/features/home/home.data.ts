@@ -4,17 +4,10 @@ import { fetchGetNamespaces } from '@/services/general.service'
 import { fetchResourceTuning } from '@/services/workload.service'
 import { hasWailsRuntime } from '@/services/runtime'
 import { computeSummary, toRecommendation } from '@/features/optimization/optimization.data'
-import type { ActivityItem, Greeting, Kpi, OptimizationSummary } from './types'
+import type { ActivityItem, Kpi, OptimizationSummary } from './types'
 import type { FleetTotals } from '@/types/fleet'
 import type { Issue } from '@/types/issue'
 
-// TODO-4: TBD if this will continue
-export const greeting: Greeting = {
-	name: 'Beto',
-	date: 'Saturday, 13 June 2026',
-	clusters: 4,
-	issues: 3,
-}
 
 // TODO-5: TBD if this will continue. Presents fleet totals as the Home KPI tiles.
 export function homeKpis(totals: FleetTotals, issues: Issue[]): Kpi[] {

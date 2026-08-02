@@ -1,16 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useThemeStore } from '@/stores/theme.store'
 import { useOverlayStore } from '@/stores/overlay.store'
+import { useBreadcrumbs } from '@/composables/useBreadcrumbs.ts'
 
-const route = useRoute()
 const themeStore = useThemeStore()
 const { theme } = storeToRefs(themeStore)
 const overlay = useOverlayStore()
+const { crumbs } = useBreadcrumbs()
 
-const crumbs = computed(() => route.meta.crumbs ?? [])
 </script>
 
 <template>

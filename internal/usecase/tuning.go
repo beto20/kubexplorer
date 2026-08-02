@@ -73,8 +73,7 @@ func (r *resourceUseCase) ResourceTuning(ctx context.Context, clusterCtx string,
 	return recommendations, nil
 }
 
-// containerUsage finds the observed usage for a named container in a
-// pod's metrics.
+// containerUsage finds the observed usage for a named container in a pod's metrics.
 func containerUsage(containers []v1beta1.ContainerMetrics, name string) (model.Resource, bool) {
 	for _, c := range containers {
 		if c.Name == name {
