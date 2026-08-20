@@ -5,6 +5,6 @@ export const homeRoutes: RouteRecordRaw[] = [
 		path: '/dashboard',
 		name: 'home-dashboard',
 		component: () => import('./pages/HomeDashboardPage.vue'),
-		meta: { shell: 'kx', nav: 'home', cluster: 'all clusters', clusterSub: '4 connected · 3 issues', crumbs: ['Home'] },
+		meta: { shell: 'kx', nav: 'home', cluster: 'all clusters', clusterSub: '', crumbs: ['Home'] },
 	},
 ]
