@@ -25,6 +25,8 @@ type EnvironmentDto struct {
 type NodeDto struct {
 	Name            string
 	Resource        Resource
+	Allocatable     Resource
+	Ready           bool
 	KubeletVersion  string
 	OperatingSystem string
 	Version         string

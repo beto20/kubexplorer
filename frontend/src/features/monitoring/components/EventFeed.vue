@@ -16,8 +16,8 @@ defineProps<{ events: EventItem[] }>()
 				</div>
 			</div>
 		</div>
-        <div v-else class="list-empty">Events feed not connected — needs an events watch the backend does not expose yet.</div>
-	</div>
+        <div v-else class="list-empty">No recent events.</div>
+    </div>
 </template>
 
 <style scoped>

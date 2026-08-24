@@ -4,9 +4,26 @@ import (
 	"Kubexplorer/internal/model"
 	"context"
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func nodeReady(node corev1.Node) bool {
+	for _, c := range node.Status.Conditions {
+		if c.Type == corev1.NodeReady {
+			return c.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+func nodeAllocatable(node corev1.Node) model.Resource {
+	return model.Resource{
+		Cpu:    node.Status.Allocatable.Cpu().MilliValue(),
+		Memory: node.Status.Allocatable.Memory().ScaledValue(resource.Mega),
+	}
+}
 
 type NodeClient struct {
 	manager ClusterResolver
@@ -37,6 +54,8 @@ func (n *NodeClient) GetNodes(ctx context.Context, clusterCtx string) ([]model.N
 				Memory:  node.Status.Capacity.Memory().ScaledValue(resource.Giga),
 				Storage: node.Status.Capacity.StorageEphemeral().ScaledValue(resource.Giga),
 			},
+			Allocatable:     nodeAllocatable(node),
+			Ready:           nodeReady(node),
 			KubeletVersion:  node.Status.NodeInfo.KubeletVersion,
 			OperatingSystem: node.Status.NodeInfo.OperatingSystem,
 			Version:         node.ResourceVersion,
@@ -70,9 +89,11 @@ func (n *NodeClient) GetNode(ctx context.Context, ref model.ResourceRef) (model.
 			Memory:  node.Status.Capacity.Memory().ScaledValue(resource.Giga),
 			Storage: node.Status.Capacity.StorageEphemeral().ScaledValue(resource.Giga),
 		},
-		Version:   node.ResourceVersion,
-		Age:       model.FormatAge(node.CreationTimestamp.Time),
-		CreatedAt: node.CreationTimestamp.Unix(),
-		Labels:    node.Labels,
+		Allocatable: nodeAllocatable(*node),
+		Ready:       nodeReady(*node),
+		Version:     node.ResourceVersion,
+		Age:         model.FormatAge(node.CreationTimestamp.Time),
+		CreatedAt:   node.CreationTimestamp.Unix(),
+		Labels:      node.Labels,
 	}, nil
 }

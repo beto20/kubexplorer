@@ -1,5 +1,25 @@
 export namespace model {
 	
+	export class ClusterEventDto {
+	    Kind: string;
+	    Title: string;
+	    Detail: string;
+	    Age: string;
+	    CreatedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ClusterEventDto(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Kind = source["Kind"];
+	        this.Title = source["Title"];
+	        this.Detail = source["Detail"];
+	        this.Age = source["Age"];
+	        this.CreatedAt = source["CreatedAt"];
+	    }
+	}
 	export class ClusterInfo {
 	    Name: string;
 	    Cluster: string;
@@ -421,6 +441,120 @@ export namespace model {
 	        this.FSType = source["FSType"];
 	    }
 	}
+	export class MetricKpiDto {
+	    Label: string;
+	    Value: string;
+	    Unit: string;
+	    Pct: number;
+	    Hint: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MetricKpiDto(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Label = source["Label"];
+	        this.Value = source["Value"];
+	        this.Unit = source["Unit"];
+	        this.Pct = source["Pct"];
+	        this.Hint = source["Hint"];
+	    }
+	}
+	export class TrendPointDto {
+	    T: number;
+	    CPU: number;
+	    Mem: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrendPointDto(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.T = source["T"];
+	        this.CPU = source["CPU"];
+	        this.Mem = source["Mem"];
+	    }
+	}
+	export class PodPhaseDto {
+	    Running: number;
+	    Pending: number;
+	    Failed: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PodPhaseDto(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Running = source["Running"];
+	        this.Pending = source["Pending"];
+	        this.Failed = source["Failed"];
+	    }
+	}
+	export class NodeUsageDto {
+	    Name: string;
+	    CPUPct: number;
+	    MemPct: number;
+	    Pods: number;
+	    Status: string;
+	    Ready: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new NodeUsageDto(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.CPUPct = source["CPUPct"];
+	        this.MemPct = source["MemPct"];
+	        this.Pods = source["Pods"];
+	        this.Status = source["Status"];
+	        this.Ready = source["Ready"];
+	    }
+	}
+	export class MonitoringSnapshotDto {
+	    KPIs: MetricKpiDto[];
+	    NodeUsage: NodeUsageDto[];
+	    PodPhase: PodPhaseDto;
+	    Events: ClusterEventDto[];
+	    Trend: TrendPointDto[];
+	    MetricsAvailable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MonitoringSnapshotDto(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.KPIs = this.convertValues(source["KPIs"], MetricKpiDto);
+	        this.NodeUsage = this.convertValues(source["NodeUsage"], NodeUsageDto);
+	        this.PodPhase = this.convertValues(source["PodPhase"], PodPhaseDto);
+	        this.Events = this.convertValues(source["Events"], ClusterEventDto);
+	        this.Trend = this.convertValues(source["Trend"], TrendPointDto);
+	        this.MetricsAvailable = source["MetricsAvailable"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class NFS {
 	    Path: string;
 	    Server: string;
@@ -490,6 +624,8 @@ export namespace model {
 	export class NodeDto {
 	    Name: string;
 	    Resource: Resource;
+	    Allocatable: Resource;
+	    Ready: boolean;
 	    KubeletVersion: string;
 	    OperatingSystem: string;
 	    Version: string;
@@ -505,6 +641,8 @@ export namespace model {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.Name = source["Name"];
 	        this.Resource = this.convertValues(source["Resource"], Resource);
+	        this.Allocatable = this.convertValues(source["Allocatable"], Resource);
+	        this.Ready = source["Ready"];
 	        this.KubeletVersion = source["KubeletVersion"];
 	        this.OperatingSystem = source["OperatingSystem"];
 	        this.Version = source["Version"];
@@ -531,6 +669,7 @@ export namespace model {
 		    return a;
 		}
 	}
+	
 	export class Secret {
 	    Name: string;
 	    Namespace: string;
@@ -944,6 +1083,7 @@ export namespace model {
 		    return a;
 		}
 	}
+	
 	export class PodUpdate {
 	    App: string;
 	    Container: ContainerUpdate;
@@ -1034,6 +1174,7 @@ export namespace model {
 	        this.SelectorApp = source["SelectorApp"];
 	    }
 	}
+	
 	export class Troubleshoot {
 	    Meaning: string;
 	    Recommendation: string;

@@ -27,6 +27,11 @@ type NodeClient interface {
 
 type MetricClient interface {
 	GetPodMetrics(ctx context.Context, clusterCtx string, namespace string) (*v1beta1.PodMetricsList, error)
+	GetNodeMetrics(ctx context.Context, clusterCtx string) (*v1beta1.NodeMetricsList, error)
+}
+
+type EventClient interface {
+	GetEvents(ctx context.Context, clusterCtx string, limit int) ([]model.ClusterEventDto, error)
 }
 
 type PodClient interface {

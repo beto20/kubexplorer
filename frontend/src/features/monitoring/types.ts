@@ -38,7 +38,9 @@ export interface EventItem {
 export interface MonitoringData {
 	kpis: MetricKpi[]
 	cpuTrend: number[]
+	memTrend: number[]
 	podPhase: PodPhase
 	nodes: NodeRow[]
 	events: EventItem[]
+	metricsAvailable: boolean
 }

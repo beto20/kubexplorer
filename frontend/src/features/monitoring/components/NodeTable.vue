@@ -7,23 +7,28 @@ defineProps<{ nodes: NodeRow[] }>()
 </script>
 
 <template>
-	<div class="card">
-		<div class="head">Nodes</div>
-		<table class="tbl">
-			<thead>
-				<tr><th>Node</th><th>CPU</th><th>Mem</th><th>Pods</th><th>Status</th></tr>
-			</thead>
-			<tbody>
-				<tr v-for="n in nodes" :key="n.name">
-					<td><span class="name">{{ n.name }}</span></td>
+    <div class="card">
+        <div class="head">Nodes</div>
+        <div class="scroll">
+            <table class="tbl">
+                <thead>
+                <tr><th>Node</th><th>CPU</th><th>Mem</th><th>Pods</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                <tr v-for="n in nodes" :key="n.name">
+                    <td><span class="name">{{ n.name }}</span></td>
                     <td><UsageBar v-if="n.cpu !== null" class="b" :pct="n.cpu" /><span v-else class="na">—</span></td>
                     <td><UsageBar v-if="n.memory !== null" class="b" :pct="n.memory" /><span v-else class="na">—</span></td>
-					<td class="mono">{{ n.pods }}</td>
-					<td><StatusChip :status="n.status" :tone="n.statusTone" /></td>
-				</tr>
-			</tbody>
-		</table>
-	</div>
+                    <td class="mono">{{ n.pods }}</td>
+                    <td><StatusChip :status="n.status" :tone="n.statusTone" /></td>
+                </tr>
+                <tr v-if="nodes.length === 0">
+                    <td colspan="5" class="empty">No nodes reported.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </template>
 
 <style scoped>
@@ -39,6 +44,10 @@ defineProps<{ nodes: NodeRow[] }>()
 	padding: 14px 16px;
 	border-bottom: 1px solid var(--border-soft);
 }
+.scroll {
+    max-height: 320px;
+    overflow-y: auto;
+}
 .tbl {
 	width: 100%;
 	border-collapse: collapse;
@@ -52,6 +61,10 @@ defineProps<{ nodes: NodeRow[] }>()
 	text-transform: uppercase;
 	color: var(--text-faint);
 	padding: 10px 16px;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 1;
 }
 .tbl tbody td {
 	padding: 11px 16px;
@@ -72,5 +85,10 @@ defineProps<{ nodes: NodeRow[] }>()
 }
 .na {
     color: var(--text-faint);
+}
+.empty {
+    text-align: center;
+    color: var(--text-faint);
+    padding: 28px 0;
 }
 </style>

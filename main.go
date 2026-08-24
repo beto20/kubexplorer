@@ -3,6 +3,8 @@ package main
 import (
 	"Kubexplorer/internal/binding"
 	"Kubexplorer/internal/k8s"
+	"Kubexplorer/internal/usecase"
+	"context"
 	"embed"
 	"log/slog"
 	"os"
@@ -27,6 +29,9 @@ func main() {
 	app := binding.NewApp()
 	manager := k8s.NewClusterManager()
 
+	sampler := usecase.NewMetricSampler(k8s.NewNode(manager), k8s.NewMetric(manager))
+	samplerCtx, stopSampler := context.WithCancel(context.Background())
+
 	err := wails.Run(&options.App{
 		Title:  PROGRAM_NAME,
 		Width:  WIDTH,
@@ -35,18 +40,24 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.Startup,
-		OnShutdown:       app.Shutdown,
+		OnStartup: func(ctx context.Context) {
+			app.Startup(ctx)
+			go sampler.Run(samplerCtx)
+		},
+		OnShutdown: func(ctx context.Context) {
+			stopSampler()
+			app.Shutdown(ctx)
+		},
 		Bind: []interface{}{
 			app,
 			binding.BuildEnvironment(app, manager),
 			binding.BuildGeneral(app, manager),
+			binding.BuildMonitoring(app, manager, sampler),
 			binding.BuildNetwork(app, manager),
 			binding.BuildStorage(app, manager),
 			binding.BuildWorkload(app, manager),
 		},
 	})
-
 	if err != nil {
 		slog.Error("wails run failed", "error", err)
 	}
