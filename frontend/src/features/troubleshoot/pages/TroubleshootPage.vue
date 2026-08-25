@@ -11,13 +11,19 @@ import { hasWailsRuntime } from '@/services/runtime'
 import { toAppError } from '@/services/apperror'
 import type { Diagnosis, DiagnosisAction } from '../types'
 import {useRoute} from "vue-router";
+import { useClusterStore } from '@/stores/cluster.store'
 
 const route = useRoute()
 const issuesStore = useIssuesStore()
+const clusterStore = useClusterStore()
 const { items: issues } = storeToRefs(issuesStore)
 
+const visibleIssues = computed(() =>
+    clusterStore.currentCluster ? issues.value.filter((i) => i.cluster === clusterStore.currentCluster) : issues.value,
+)
+
 const selectedId = ref('')
-const selectedIssue = computed(() => issues.value.find((i) => i.id === selectedId.value) ?? null)
+const selectedIssue = computed(() => visibleIssues.value.find((i) => i.id === selectedId.value) ?? null)
 
 const { data: diagnosis, loading, error, reload } = useAsyncData<Diagnosis | null>(() => {
 	const issue = selectedIssue.value
@@ -39,11 +45,14 @@ function select(id: string) {
 
 function selectFromRoute() {
     const wanted = route.query.issue
-    const match = typeof wanted === 'string' ? issues.value.find((i) => i.name === wanted) : undefined
+    const match = typeof wanted === 'string' ? visibleIssues.value.find((i) => i.name === wanted) : undefined
     if (match) {
         select(match.id)
-    } else if (issues.value.length) {
-        select(issues.value[0].id)
+    } else if (visibleIssues.value.length) {
+        select(visibleIssues.value[0].id)
+    } else {
+        selectedId.value = ''
+        reload()
     }
 }
 
@@ -67,7 +76,16 @@ async function onAction(action: DiagnosisAction) {
 watch(
     () => route.query.issue,
     () => {
-        if (issues.value.length) {
+        if (visibleIssues.value.length) {
+            selectFromRoute()
+        }
+    },
+)
+
+watch(
+    () => clusterStore.currentCluster,
+    () => {
+        if (!visibleIssues.value.some((i) => i.id === selectedId.value)) {
             selectFromRoute()
         }
     },
@@ -81,7 +99,7 @@ onMounted(async () => {
 
 <template>
 	<div class="grid">
-		<IssueQueue :issues="issues" :selected-id="selectedId" @select="select" />
+        <IssueQueue :issues="visibleIssues" :selected-id="selectedId" @select="select" />
 		<DiagnosisPanel :issue="selectedIssue" :diagnosis="diagnosis" :loading="loading" :error="error" @action="onAction" @retry="reload" />
 	</div>
 

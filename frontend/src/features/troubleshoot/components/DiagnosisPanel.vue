@@ -3,7 +3,7 @@ import StatusChip from '@/components/shared/StatusChip.vue'
 import KxState from '@/components/shared/KxState.vue'
 import type { AppError } from '@/services/apperror'
 import type { Issue } from '@/types/issue'
-import type { Diagnosis, DiagnosisAction } from '../types'
+import type { Diagnosis, DiagnosisAction, Severity } from '../types'
 
 const props = defineProps<{ issue: Issue | null; diagnosis: Diagnosis | null; loading: boolean; error: AppError | null }>()
 
@@ -11,58 +11,90 @@ const emit = defineEmits<{
 	(e: 'action', action: DiagnosisAction): void
 	(e: 'retry'): void
 }>()
+
+const ACTION_LABELS: Record<DiagnosisAction['kind'], string> = {
+    apply: 'Apply',
+    restart: 'Restart',
+    rollback: 'Roll back',
+    logs: 'View',
+    inspect: 'Open',
+    cordon: 'Cordon',
+    drain: 'Drain',
+    scale: 'Scale',
+}
+
+const PRIMARY_ACTIONS: DiagnosisAction['kind'][] = ['apply', 'restart']
+
+const EXECUTABLE_ACTIONS: DiagnosisAction['kind'][] = ['restart']
+
+const SEVERITY_LABEL: Record<Severity, string> = {
+    critical: 'Critical',
+    warning: 'Warning',
+    info: 'Info',
+    ok: 'Healthy',
+}
+
+function isAdvisory(kind: DiagnosisAction['kind']): boolean {
+    return !EXECUTABLE_ACTIONS.includes(kind)
+}
 </script>
 
 <template>
-	<div class="panel">
-		<div v-if="!props.issue" class="placeholder">Select an issue to see its diagnosis.</div>
+    <div class="panel">
+        <div v-if="!props.issue" class="placeholder">Select an issue to see its diagnosis.</div>
 
-		<template v-else>
-			<header class="head">
-				<div class="left">
-					<div class="ico">🩺</div>
-					<div>
-						<div class="t">Diagnosis</div>
-						<div class="sub">{{ props.issue.name }} · {{ props.issue.cluster }}</div>
-					</div>
-				</div>
-				<StatusChip :status="props.issue.reason" :tone="props.issue.reasonTone" />
-			</header>
+        <template v-else>
+            <header class="head">
+                <div class="left">
+                    <div class="ico">🩺</div>
+                    <div>
+                        <div class="t">Diagnosis</div>
+                        <div class="sub">{{ props.issue.name }} · {{ props.issue.cluster }}</div>
+                    </div>
+                </div>
+                <StatusChip :status="props.issue.reason" :tone="props.issue.reasonTone" />
+            </header>
 
-			<KxState v-if="props.loading || props.error" :loading="props.loading" :error="props.error" @retry="emit('retry')" />
+            <KxState v-if="props.loading || props.error" :loading="props.loading" :error="props.error" @retry="emit('retry')" />
 
-			<template v-else-if="props.diagnosis">
-				<div class="section-t">What happened</div>
-				<p class="prose">{{ props.diagnosis.meaning }}</p>
+            <template v-else-if="props.diagnosis">
+                <div class="section-t">
+                    What happened
+                    <span class="sev" :class="props.diagnosis.severity">{{ SEVERITY_LABEL[props.diagnosis.severity] }}</span>
+                </div>
+                <p class="prose">{{ props.diagnosis.meaning }}</p>
 
-				<template v-if="props.diagnosis.evidence.length">
-					<div class="section-t">Evidence</div>
-					<div class="evidence">
-						<div v-for="(e, i) in props.diagnosis.evidence" :key="i" class="ev">
-							<div class="ev-lbl">{{ e.label }}</div>
-							<div class="ev-val">{{ e.value }}</div>
-						</div>
-					</div>
-				</template>
+                <template v-if="props.diagnosis.evidence.length">
+                    <div class="section-t">Evidence</div>
+                    <div class="evidence">
+                        <div v-for="(e, i) in props.diagnosis.evidence" :key="i" class="ev">
+                            <div class="ev-lbl">{{ e.label }}</div>
+                            <div class="ev-val" :class="props.diagnosis.severity">{{ e.value }}</div>
+                        </div>
+                    </div>
+                </template>
 
-				<div class="section-t">Recommended actions</div>
-				<p class="rec">{{ props.diagnosis.recommendation }}</p>
+                <div class="section-t">Recommended actions</div>
+                <p class="rec">{{ props.diagnosis.recommendation }}</p>
 
-				<div class="actions">
-					<div v-for="(a, i) in props.diagnosis.actions" :key="i" class="action">
-						<span class="idx">{{ i + 1 }}</span>
-						<div class="a-meta">
-							<div class="a-label">{{ a.label }}</div>
-							<div class="a-desc">{{ a.description }}</div>
-						</div>
-						<button class="btn" :class="a.kind === 'apply' || a.kind === 'restart' ? 'ai' : ''" @click="emit('action', a)">
-							{{ a.kind === 'apply' ? 'Apply' : a.kind === 'restart' ? 'Restart' : a.kind === 'rollback' ? 'Roll back' : a.kind === 'logs' ? 'View' : 'Open' }}
-						</button>
-					</div>
-				</div>
-			</template>
-		</template>
-	</div>
+                <div class="actions">
+                    <div v-for="(a, i) in props.diagnosis.actions" :key="i" class="action">
+                        <span class="idx">{{ i + 1 }}</span>
+                        <div class="a-meta">
+                            <div class="a-label">
+                                {{ a.label }}
+                                <span v-if="isAdvisory(a.kind)" class="advisory">advisory</span>
+                            </div>
+                            <div class="a-desc">{{ a.description }}</div>
+                        </div>
+                        <button class="btn" :class="PRIMARY_ACTIONS.includes(a.kind) ? 'ai' : ''" @click="emit('action', a)">
+                            {{ ACTION_LABELS[a.kind] }}
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </template>
+    </div>
 </template>
 
 <style scoped>
@@ -108,12 +140,38 @@ const emit = defineEmits<{
 	font-family: var(--mono);
 }
 .section-t {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 	font-size: 11px;
 	font-weight: 600;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	color: var(--text-faint);
 	margin: 22px 0 12px;
+}
+.sev {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 1px 8px;
+    border-radius: 999px;
+}
+.sev.critical {
+    color: var(--err);
+    background: var(--err-bg);
+}
+.sev.warning {
+    color: var(--warn);
+    background: var(--warn-bg);
+}
+.sev.info {
+    color: var(--info);
+    background: var(--info-bg);
+}
+.sev.ok {
+    color: var(--ok);
+    background: var(--ok-bg);
 }
 .prose {
 	margin: 0;
@@ -146,7 +204,13 @@ const emit = defineEmits<{
 	font-family: var(--mono);
 	font-size: 17px;
 	margin-top: 8px;
-	color: var(--err);
+    color: var(--text);
+}
+.ev-val.critical {
+    color: var(--err);
+}
+.ev-val.warning {
+    color: var(--warn);
 }
 .actions {
 	display: grid;
@@ -173,6 +237,19 @@ const emit = defineEmits<{
 .a-label {
 	font-size: 13px;
 	font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.advisory {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: var(--surface-3);
+    border-radius: 999px;
+    padding: 1px 7px;
 }
 .a-desc {
 	font-size: 11.5px;

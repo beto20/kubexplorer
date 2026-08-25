@@ -20,6 +20,7 @@ func BuildWorkload(app *App, manager *k8s.ClusterManager) *Workload {
 	podClient := k8s.NewPod(manager)
 	deploymentClient := k8s.NewDeployment(manager)
 	jobClient := k8s.NewJob(manager)
+	nodeClient := k8s.NewNode(manager)
 	metricClient := k8s.NewMetric(manager)
 
 	return &Workload{
@@ -27,7 +28,7 @@ func BuildWorkload(app *App, manager *k8s.ClusterManager) *Workload {
 		pod:          usecase.NewPodUseCase(podClient),
 		deployment:   usecase.NewDeploymentUseCase(deploymentClient),
 		resource:     usecase.NewResourceUseCase(deploymentClient, metricClient),
-		troubleshoot: usecase.NewTroubleshootUseCase(podClient, deploymentClient, jobClient),
+		troubleshoot: usecase.NewTroubleshootUseCase(podClient, deploymentClient, jobClient, nodeClient),
 	}
 }
 

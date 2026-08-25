@@ -16,8 +16,8 @@ defineProps<{ events: EventItem[] }>()
 				</div>
 			</div>
 		</div>
-        <div v-else class="list-empty">Events feed not connected — needs an events watch the backend does not expose yet.</div>
-	</div>
+        <div v-else class="list-empty">No recent events.</div>
+    </div>
 </template>
 
 <style scoped>
@@ -33,8 +33,11 @@ defineProps<{ events: EventItem[] }>()
 	margin-bottom: 14px;
 }
 .list {
-	display: grid;
-	gap: 12px;
+    display: grid;
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 .ev {
 	display: flex;

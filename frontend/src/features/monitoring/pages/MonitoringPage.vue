@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {onMounted, ref, watch, watchEffect} from 'vue'
+import {onMounted, onUnmounted, ref, watch, watchEffect} from 'vue'
 import MetricTile from '../components/MetricTile.vue'
 import TrendChart from '../components/TrendChart.vue'
 import PhaseDonut from '../components/PhaseDonut.vue'
@@ -19,7 +19,7 @@ const { setBreadcrumbs } = useBreadcrumbs()
 const cluster = ref('')
 const range = ref('Last 1h')
 
-const empty: MonitoringData = { kpis: [], cpuTrend: [], podPhase: { running: 0, pending: 0, failed: 0 }, nodes: [], events: [] }
+const empty: MonitoringData = { kpis: [], cpuTrend: [], memTrend: [], podPhase: { running: 0, pending: 0, failed: 0 }, nodes: [], events: [], metricsAvailable: true }
 const { data, loading, error, reload } = useAsyncData<MonitoringData>(() => fetchMonitoring(cluster.value, range.value), empty)
 
 watchEffect(() => {
@@ -36,9 +36,25 @@ watch(
     },
 )
 
+const REFRESH_MS = 30000
+let timer: ReturnType<typeof setInterval> | undefined
+
+function onVisibility() {
+    if (!document.hidden) reload()
+}
+
 onMounted(async () => {
-	cluster.value = await resolve()
-	await reload()
+    cluster.value = await resolve()
+    await reload()
+    timer = setInterval(() => {
+        if (!document.hidden) reload()
+    }, REFRESH_MS)
+    document.addEventListener('visibilitychange', onVisibility)
+})
+
+onUnmounted(() => {
+    if (timer) clearInterval(timer)
+    document.removeEventListener('visibilitychange', onVisibility)
 })
 </script>
 
@@ -59,22 +75,26 @@ onMounted(async () => {
 	<KxState v-if="loading || error" :loading="loading" :error="error" @retry="reload" />
 
 	<template v-else>
-		<div class="kpis">
+        <div v-if="!data.metricsAvailable" class="notice">
+            ⚠ metrics-server not detected on this cluster — CPU/memory utilisation and the trend are unavailable. Pod, node and event data are live.
+        </div>
+
+        <div class="kpis">
 			<MetricTile v-for="k in data.kpis" :key="k.label" :kpi="k" />
 		</div>
 
-		<div class="charts">
-			<TrendChart :values="data.cpuTrend" />
-			<PhaseDonut :phase="data.podPhase" />
-		</div>
+        <div class="charts">
+            <TrendChart :cpu="data.cpuTrend" :mem="data.memTrend" />
+            <PhaseDonut :phase="data.podPhase" />
+        </div>
 
 		<div class="bottom">
 			<NodeTable :nodes="data.nodes" />
 			<EventFeed :events="data.events" />
 		</div>
 
-		<p class="note">CPU/memory trend, network I/O, and the event feed are sampled mock data pending the metrics-server integration.</p>
-	</template>
+        <p class="note">Live data from the cluster. Network I/O needs a cAdvisor/Prometheus source and is not yet available.</p>
+    </template>
 </template>
 
 <style scoped>
@@ -144,5 +164,17 @@ onMounted(async () => {
 	font-size: 12px;
 	color: var(--text-faint);
 	margin-top: 16px;
+}
+.notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--warn-bg);
+    background: var(--warn-bg);
+    color: var(--warn);
+    font-size: 12.5px;
 }
 </style>

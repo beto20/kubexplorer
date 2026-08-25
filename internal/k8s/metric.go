@@ -27,3 +27,17 @@ func (m *MetricClient) GetPodMetrics(ctx context.Context, clusterCtx string, nam
 
 	return metrics, nil
 }
+
+func (m *MetricClient) GetNodeMetrics(ctx context.Context, clusterCtx string) (*v1beta1.NodeMetricsList, error) {
+	client, err := m.manager.ResolveClusterMetric(clusterCtx)
+	if err != nil {
+		return nil, fmt.Errorf("kubeclient: error resolving cluster context: %v", err)
+	}
+
+	metrics, err := client.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("kubeclient: listing node metrics: %w", err)
+	}
+
+	return metrics, nil
+}
