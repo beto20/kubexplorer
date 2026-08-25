@@ -33,8 +33,11 @@ defineProps<{ events: EventItem[] }>()
 	margin-bottom: 14px;
 }
 .list {
-	display: grid;
-	gap: 12px;
+    display: grid;
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 .ev {
 	display: flex;

@@ -23,6 +23,7 @@ type ClusterClient interface {
 type NodeClient interface {
 	GetNode(ctx context.Context, ref model.ResourceRef) (model.NodeDto, error)
 	GetNodes(ctx context.Context, clusterCtx string) ([]model.NodeDto, error)
+	GetNodeObject(ctx context.Context, ref model.ResourceRef) (*v1_core.Node, error)
 }
 
 type MetricClient interface {

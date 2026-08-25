@@ -38,7 +38,7 @@ export const navGroups: NavGroup[] = [
 	{
 		title: 'Operate',
 		items: [
-			{ key: 'troubleshoot', label: 'Troubleshoot', icon: '🩺', badge: '3', route: 'troubleshoot' },
+			{ key: 'troubleshoot', label: 'Troubleshoot', icon: '🩺', route: 'troubleshoot' },
 			{ key: 'optimization', label: 'Optimization', icon: '✦', route: 'optimization' },
 			{ key: 'backup', label: 'Backup & Restore', icon: '⭢', route: 'backup' },
 		],

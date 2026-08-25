@@ -70,6 +70,19 @@ func (n *NodeClient) GetNodes(ctx context.Context, clusterCtx string) ([]model.N
 	return result, nil
 }
 
+func (n *NodeClient) GetNodeObject(ctx context.Context, ref model.ResourceRef) (*corev1.Node, error) {
+	client, err := n.manager.ResolveClusterContext(ref.Cluster)
+	if err != nil {
+		return nil, fmt.Errorf("kubeclient: error resolving cluster context: %v", err)
+	}
+
+	node, err := client.CoreV1().Nodes().Get(ctx, ref.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("getting node %s: %w", ref.Name, err)
+	}
+	return node, nil
+}
+
 func (n *NodeClient) GetNode(ctx context.Context, ref model.ResourceRef) (model.NodeDto, error) {
 	name, clusterCtx := ref.Name, ref.Cluster
 	client, err := n.manager.ResolveClusterContext(clusterCtx)

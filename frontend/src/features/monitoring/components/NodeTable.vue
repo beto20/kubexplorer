@@ -17,8 +17,14 @@ defineProps<{ nodes: NodeRow[] }>()
                 <tbody>
                 <tr v-for="n in nodes" :key="n.name">
                     <td><span class="name">{{ n.name }}</span></td>
-                    <td><UsageBar v-if="n.cpu !== null" class="b" :pct="n.cpu" /><span v-else class="na">—</span></td>
-                    <td><UsageBar v-if="n.memory !== null" class="b" :pct="n.memory" /><span v-else class="na">—</span></td>
+                    <td>
+                        <div v-if="n.cpu !== null" class="usage"><UsageBar class="b" :pct="n.cpu" /><span class="val">{{ n.cpu }}%</span></div>
+                        <span v-else class="na">—</span>
+                    </td>
+                    <td>
+                        <div v-if="n.memory !== null" class="usage"><UsageBar class="b" :pct="n.memory" /><span class="val">{{ n.memory }}%</span></div>
+                        <span v-else class="na">—</span>
+                    </td>
                     <td class="mono">{{ n.pods }}</td>
                     <td><StatusChip :status="n.status" :tone="n.statusTone" /></td>
                 </tr>
@@ -45,7 +51,7 @@ defineProps<{ nodes: NodeRow[] }>()
 	border-bottom: 1px solid var(--border-soft);
 }
 .scroll {
-    max-height: 320px;
+    max-height: 400px;
     overflow-y: auto;
 }
 .tbl {
@@ -82,6 +88,16 @@ defineProps<{ nodes: NodeRow[] }>()
 }
 .b {
 	width: 90px;
+}
+.usage {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.val {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
 }
 .na {
     color: var(--text-faint);

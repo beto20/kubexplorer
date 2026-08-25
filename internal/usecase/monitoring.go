@@ -38,7 +38,6 @@ func (m *monitoringUseCase) GetMonitoring(ctx context.Context, clusterCtx string
 		return model.MonitoringSnapshotDto{}, fmt.Errorf("getting pods: %w", err)
 	}
 
-	// metrics-server may be absent; degrade gracefully instead of failing.
 	usageByNode := map[string]nodeUsage{}
 	metricsAvailable := false
 	if metrics, mErr := m.metric.GetNodeMetrics(ctx, clusterCtx); mErr == nil && metrics != nil {
@@ -46,15 +45,11 @@ func (m *monitoringUseCase) GetMonitoring(ctx context.Context, clusterCtx string
 		usageByNode = nodeUsageMap(metrics)
 	}
 
-	// Events are best-effort too; an events RBAC/watch failure shouldn't sink
-	// the whole snapshot.
 	events, evErr := m.event.GetEvents(ctx, clusterCtx, eventFeedLimit)
 	if evErr != nil {
 		events = nil
 	}
 
-	// Feed the rolling trend: register the cluster for background sampling and
-	// seed the point we just computed so the chart isn't blank on first open.
 	var trend []model.TrendPointDto
 	if m.sampler != nil {
 		m.sampler.Track(clusterCtx)
@@ -76,8 +71,6 @@ func (m *monitoringUseCase) GetMonitoring(ctx context.Context, clusterCtx string
 	}, nil
 }
 
-// pointsForRange maps a UI range label to the number of trend points to return,
-// based on the sampler interval (~120 points per hour at 30s).
 func pointsForRange(rng string) int {
 	switch rng {
 	case "Last 6h":
@@ -94,8 +87,6 @@ type nodeUsage struct {
 	memMega  int64
 }
 
-// nodeUsageMap indexes metrics-server node usage by node name, in the units
-// (CPU millicores, memory MB) used for allocatable comparisons.
 func nodeUsageMap(metrics *v1beta1.NodeMetricsList) map[string]nodeUsage {
 	usage := make(map[string]nodeUsage, len(metrics.Items))
 	for _, item := range metrics.Items {
@@ -107,8 +98,6 @@ func nodeUsageMap(metrics *v1beta1.NodeMetricsList) map[string]nodeUsage {
 	return usage
 }
 
-// clusterUtilisation returns cluster-wide CPU and memory utilisation percent
-// (summed usage over summed allocatable), or -1 when capacity is unknown.
 func clusterUtilisation(nodes []model.NodeDto, usage map[string]nodeUsage) (cpu, mem int) {
 	var usedCPU, capCPU, usedMem, capMem int64
 	for _, n := range nodes {
@@ -137,7 +126,6 @@ func buildPodPhase(pods []model.PodDto) model.PodPhaseDto {
 	return phase
 }
 
-// pct returns a rounded, clamped percentage, or -1 when the denominator is zero.
 func pct(used, capacity int64) int {
 	if capacity <= 0 {
 		return -1
@@ -205,7 +193,6 @@ func buildMonitoringKpis(nodes []model.NodeDto, usage map[string]nodeUsage, phas
 		utilKpi("CPU utilisation", cpuPct),
 		utilKpi("Memory utilisation", memPct),
 		{Label: "Pods running", Value: fmt.Sprintf("%d", phase.Running), Unit: fmt.Sprintf("/ %d", totalPods), Pct: -1, Hint: podsHint},
-		// Network throughput needs cAdvisor/Prometheus, not metrics-server.
 		{Label: "Network I/O", Value: "—", Pct: -1, Hint: "not available"},
 	}
 }

@@ -8,6 +8,7 @@ import { footerNav, navGroups } from './nav.config'
 import type { NavItem } from './nav.config'
 import {useClusterStore} from "@/stores/cluster.store.ts";
 import {useFleetStore} from "@/stores/fleet.store.ts";
+import {useIssuesStore} from "@/stores/issues.store.ts";
 
 const route = useRoute()
 const router = useRouter()
@@ -15,6 +16,7 @@ const overlay = useOverlayStore()
 const settings = useSettingsStore()
 const clusterStore = useClusterStore()
 const fleetStore = useFleetStore()
+const issuesStore = useIssuesStore()
 
 const active = computed(() => route.meta.nav)
 const cluster = computed(() => clusterStore.currentCluster || route.meta.cluster || 'all clusters')
@@ -30,7 +32,24 @@ const clusterSub = computed(() => {
 })
 const clusterEnv = computed(() => settings.envFor(cluster.value))
 
-onMounted(() => fleetStore.load())
+const openIssues = computed(() => {
+    const items = clusterStore.currentCluster
+        ? issuesStore.items.filter((i) => i.cluster === clusterStore.currentCluster)
+        : issuesStore.items
+    return items.length
+})
+
+function badgeFor(item: NavItem): string | undefined {
+    if (item.key === 'troubleshoot') {
+        return openIssues.value ? String(openIssues.value) : undefined
+    }
+    return item.badge
+}
+
+onMounted(() => {
+    fleetStore.load()
+    issuesStore.load()
+})
 
 function go(item: NavItem) {
 	if (item.route && !item.soon) {
@@ -68,7 +87,7 @@ function go(item: NavItem) {
 				@click="go(item)"
 			>
 				<span class="ico">{{ item.icon }}</span> {{ item.label }}
-				<span v-if="item.badge" class="badge">{{ item.badge }}</span>
+                <span v-if="badgeFor(item)" class="badge">{{ badgeFor(item) }}</span>
 				<span v-else-if="item.soon" class="soon-tag">soon</span>
 			</button>
 		</template>

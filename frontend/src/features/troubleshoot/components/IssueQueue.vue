@@ -12,24 +12,26 @@ const warning = computed(() => props.issues.filter((i) => i.reasonTone === 'warn
 </script>
 
 <template>
-	<div>
-		<h2 class="title">Open issues</h2>
-		<div class="counts">
-			<span class="chip err">{{ critical }} critical</span>
-			<span class="chip warn">{{ warning }} warning</span>
-		</div>
+    <div>
+        <h2 class="title">Open issues</h2>
+        <div class="counts">
+            <span class="chip err">{{ critical }} critical</span>
+            <span class="chip warn">{{ warning }} warning</span>
+        </div>
 
-		<button v-for="issue in issues" :key="issue.id" type="button" class="issue" :class="{ on: issue.id === selectedId }" @click="emit('select', issue.id)">
-			<div class="row">
-				<StatusChip :status="issue.reason" :tone="issue.reasonTone" />
-				<span class="age">{{ issue.age }} ago</span>
-			</div>
-			<div class="name">{{ issue.name }}</div>
-			<div class="sub">{{ issue.kind }} · {{ issue.cluster }}</div>
-		</button>
-	</div>
+        <div class="list">
+            <button v-for="issue in issues" :key="issue.id" type="button" class="issue" :class="{ on: issue.id === selectedId }" @click="emit('select', issue.id)">
+                <div class="row">
+                    <StatusChip :status="issue.reason" :tone="issue.reasonTone" />
+                    <span class="age">{{ issue.age }} ago</span>
+                </div>
+                <div class="name">{{ issue.name }}</div>
+                <div class="sub">{{ issue.kind }} · {{ issue.cluster }}</div>
+            </button>
+            <div v-if="!issues.length" class="empty">No open issues 🎉</div>
+        </div>
+    </div>
 </template>
-
 <style scoped>
 .title {
 	margin: 0 0 14px;
@@ -64,6 +66,17 @@ const warning = computed(() => props.issues.filter((i) => i.reasonTone === 'warn
 .chip.warn {
 	color: var(--warn);
 	background: var(--warn-bg);
+}
+.list {
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.empty {
+    color: var(--text-faint);
+    font-size: 12.5px;
+    text-align: center;
+    padding: 28px 0;
 }
 .issue {
 	display: block;
